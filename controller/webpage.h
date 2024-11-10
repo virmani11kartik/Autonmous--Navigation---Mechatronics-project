@@ -178,6 +178,28 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             background: #0056b3;
         }
 
+        #resetButton {
+            margin-top: 30px;
+            background: #007BFF;
+            color: white;
+            font-size: 1.1rem;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        /* Hover effect for reset button */
+        #resetButton:hover {
+            background: #0056b3;
+        }
+
+        /* Active (pressed) effect for reset button */
+        #resetButton:active {
+            background: #004080;
+        }
+
         @media (min-width: 768px) {
             #controlContainer {
                 flex-direction: row;
@@ -231,6 +253,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         </div>
     </div>
 
+    <button id="resetButton">Reset</button>
+    
     <!-- PID Controller Form -->
     <div id="pidControlContainer">
         <label for="kpInput">Kp:</label>
@@ -248,6 +272,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         <button id="sendButton">Send</button>
     </div>
+    
 
     <script>
         const speedValueElement = document.getElementById("speedValue");
@@ -291,6 +316,23 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             console.log("PID Values:", Kp, Ki, Kd, "Control Enabled:", controlEnabled);
             // You can now send these values to the server as needed
             updatePID(Kp, Ki, Kd, controlEnabled);
+        });
+        
+        const resetButton = document.getElementById("resetButton");
+
+        resetButton.addEventListener("click", () => {
+            // Set both sliders to zero
+            verticalSlider.value = 0;
+            horizontalSlider.value = 0;
+
+            // Update displayed values
+            speedValueElement.innerText = 0;
+            rpmValueElement.innerText = 0;
+            directionValueElement.innerText = "Neutral";
+            forwardBackwardValueElement.innerText = "Neutral";
+
+            // Send update to server to reset motor settings
+            updateMotor(0, 0);
         });
 
         function calculateRPM(percent) {
