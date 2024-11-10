@@ -22,8 +22,8 @@
 #define MAX_ANGULAR_VELOCITY ((MAX_WHEEL_VELOCTY * WHEEL_RADIUS)/WHEEL_BASE)
 
 // Wi-Fi network name and password
-const char* ssid = "vaibhav-esp32";  // Wi-Fi network name
-const char* password = "12345678";   // Wi-Fi password (empty for no password)
+const char* ssid = "GM Lab Public WIFI";  // Wi-Fi network name
+const char* password = "";   // Wi-Fi password (empty for no password)
 
 // IP configuration for AP mode
 IPAddress local_IP(192, 168, 1, 104);  // ESP32's IP address
@@ -52,13 +52,13 @@ int controlSignalRight = 0;
 float KP = 0.0;
 float KI = 0.0;
 float KD = 0.0;
-bool ENABLE_CONTROL = false;
+int ENABLE_CONTROL = 0;
 
 // Define the pins for the encoder A and B channels
-const int encoderPinLeftA = 1;
-const int encoderPinLeftB = 10;
-const int encoderPinRightA = 6;
-const int encoderPinRightB = 7;
+const int encoderPinLeftA = 6;
+const int encoderPinLeftB = 7;
+const int encoderPinRightA = 0;
+const int encoderPinRightB = 1;
 const int pulsesPerRevolution = 48;
 
 // Variables for the encoder
@@ -224,7 +224,7 @@ void handleControl() {
     KD = server.arg("kd").toFloat();
     ENABLE_CONTROL = server.arg("enabled").toInt();
     server.send(200, "text/plain", "Control parameters updated");
-    Serial.printf("Control parameters updated: KP: %d, KI: %d, KD: %d, ENABLED: %d\n", KP, KI, KD, ENABLE_CONTROL);
+    Serial.printf("Control parameters updated: KP: %f, KI: %f, KD: %f, ENABLED: %d\n", KP, KI, KD, ENABLE_CONTROL);
   } else {
     server.send(400, "text/plain", "Bad Request");
   }
@@ -240,8 +240,8 @@ void prepareMotorSignals(
   int& right_direction
 ) {
   // Calculate the angular velocity of each wheel
-  float omega_l = (linear_velocity + angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
-  float omega_r = (linear_velocity - angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
+  float omega_l = (linear_velocity - angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
+  float omega_r = (linear_velocity + angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
   Serial.printf("OmegaL: %f, OmegaR: %f\n", omega_l, omega_r);
 
   // Convert the angular velocity to PWM signals
