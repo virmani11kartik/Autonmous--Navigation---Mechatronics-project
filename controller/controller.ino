@@ -10,15 +10,15 @@
 #define MOTOR_STOP_DELAY 10
 
 #define RPM_TO_RAD_PER_SEC 0.10471975512                   // Conversion factor from RPM to rad/s
-#define MAX_RPM 130                                        // Maximum RPM of the motor
+#define MAX_RPM 120                                        // Maximum RPM of the motor
 #define MAX_WHEEL_VELOCTY (MAX_RPM * RPM_TO_RAD_PER_SEC)   // Maximum wheel velocity in rad/s
-#define WHEEL_RADIUS 50                                    // Wheel radius in millimeters
+#define WHEEL_RADIUS 36                                    // Wheel radius in millimeters
 
 // V = (wl*r + wr*r) / 2
 #define MAX_LINEAR_VELOCTY (MAX_WHEEL_VELOCTY * WHEEL_RADIUS) // Maximum linear velocity in m/s
 
 // w_combined = (wl - wr)*r/L
-#define WHEEL_BASE 300  // Distance between wheels in millimeters
+#define WHEEL_BASE 185  // Distance between wheels in millimeters
 #define MAX_ANGULAR_VELOCITY ((MAX_WHEEL_VELOCTY * WHEEL_RADIUS)/WHEEL_BASE)
 
 // Wi-Fi network name and password
