@@ -1,11 +1,11 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <webpage.h>
+#include <pid.h>
 
 #define LEDC_RESOLUTION_BITS 10
 #define LEDC_RESOLUTION ((1 << LEDC_RESOLUTION_BITS) - 1)
 #define LEDC_FREQUENCY 50  // Frequency in Hz
-#define ENABLE_CONTROL 1
 #define EXTRA_CARE 1 // whether to make motor stop before switching direction
 #define MOTOR_STOP_DELAY 10
 
@@ -49,6 +49,10 @@ int desiredRightDirection = 1;
 // Global variables to store the control signals for the left and right motors
 int controlSignalLeft = 0;
 int controlSignalRight = 0;
+float KP = 0.0;
+float KI = 0.0;
+float KD = 0.0;
+bool ENABLE_CONTROL = false;
 
 // Define the pins for the encoder A and B channels
 const int encoderPinLeftA = 1;
@@ -131,6 +135,7 @@ void setup() {
   Serial.println(WiFi.softAPIP());
   server.on("/", handleRoot);
   server.on("/setMotor", handleSetMotor);
+  server.on("/setPID", handleControl);
   server.begin();
   Serial.print("HTTP server started at internal IP: ");
   Serial.print(local_IP);
@@ -150,12 +155,13 @@ void loop() {
     // Calculate the RPM for the left and right motors
     rpmCalculation();
     // Log the RPM values
-    Serial.printf("Left RPM: %d, Right RPM: %d\n", leftRPM, rightRPM);
+    // Serial.printf("Left RPM: %d, Right RPM: %d\n", leftRPM, rightRPM);
 
     // Update the control signals based on the current RPM
     updateControlSignals();
     // Log the control signals
-    Serial.printf("Control Signal Left: %d, Control Signal Right: %d\n", controlSignalLeft, controlSignalRight);
+    // Serial.printf("Control Signal Left: %d, Control Signal Right: %d\n", controlSignalLeft, controlSignalRight);
+
 
     // Reset the pulse count for the next interval
     leftPulseCount = 0;
@@ -210,6 +216,20 @@ void handleSetMotor() {
   }
 }
 
+// Function to get Kp, Ki, Kd values from the webpage, along with the boolean value for control
+void handleControl() {
+  if (server.hasArg("kp") && server.hasArg("ki") && server.hasArg("kd") && server.hasArg("enabled")) {
+    KP = server.arg("kp").toFloat();
+    KI = server.arg("ki").toFloat();
+    KD = server.arg("kd").toFloat();
+    ENABLE_CONTROL = server.arg("enabled").toInt();
+    server.send(200, "text/plain", "Control parameters updated");
+    Serial.printf("Control parameters updated: KP: %d, KI: %d, KD: %d, ENABLED: %d\n", KP, KI, KD, ENABLE_CONTROL);
+  } else {
+    server.send(400, "text/plain", "Bad Request");
+  }
+}
+
 // Function to prepare the motor signals based on the linear and angular velocity
 void prepareMotorSignals(
   float linear_velocity, 
@@ -229,10 +249,10 @@ void prepareMotorSignals(
   convertAngularVelocityToPWM(omega_r, right_pwm, right_direction);
 
   // Incorporate control signals if needed
-#if ENABLE_CONTROL
-  left_pwm = controlSignalLeft + left_pwm;
-  right_pwm = controlSignalRight + right_pwm;
-#endif
+  if (ENABLE_CONTROL) {
+    left_pwm = controlSignalLeft + left_pwm;
+    right_pwm = controlSignalRight + right_pwm;
+  }
 
   // Clip to the limits of PWM
   left_pwm = min(max(left_pwm, 0), LEDC_RESOLUTION);
@@ -295,8 +315,8 @@ void updateControlSignals() {
   int current_pwm_right = map(rightRPM, 0, MAX_RPM, 0, LEDC_RESOLUTION);
 
   // PID control
-  controlSignalLeft = pidControl(desiredLeftPWM, current_pwm_left, 1000, -LEDC_RESOLUTION, LEDC_RESOLUTION);
-  controlSignalRight = pidControl(desiredRightPWM, current_pwm_right, 1000, -LEDC_RESOLUTION, LEDC_RESOLUTION);
+  controlSignalLeft = pidControl(desiredLeftPWM, current_pwm_left, 1000, -LEDC_RESOLUTION, LEDC_RESOLUTION, KP, KI, KD);
+  controlSignalRight = pidControl(desiredRightPWM, current_pwm_right, 1000, -LEDC_RESOLUTION, LEDC_RESOLUTION, KP, KI, KD);
 }
 
 // Purpose: update the direction and pulse count of the encoder based on the current encoder values
@@ -331,37 +351,4 @@ void readEncoderValue(
   last_encoded_val = encoded;
 
   return;
-}
-
-// PID Control
-int pidControl(int target, int current, int summed_error_limit, int control_limit_min, int control_limit_max) {
-
-  // PID constants
-  const int KP = 1;
-  const int KI = 0.1;
-  const int KD = 0.1;
-
-  int u;
-  static int oldsensor = 0;
-  int velocity = current - oldsensor;
-  
-  static int summederror = 0;
-  int error = target - current;
-  summederror += error;
-
-  // Anti-windup
-  int LARGE = 1000;
-  if (error < 0) summederror *= 0.5;
-  if (summederror > summed_error_limit) summederror = summed_error_limit;
-
-  u = KP * error + KI * summederror + KD * velocity;
-
-  // Max and min control - we will provide this control input as PWM to the motor
-  const int MAX = control_limit_max;
-  const int MIN = control_limit_min;
-  if (u > MAX) u = MAX;
-  if (u < MIN) u = MIN;
-  
-  oldsensor = current;
-  return u;
 }

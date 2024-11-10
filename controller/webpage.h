@@ -1,9 +1,10 @@
 const char INDEX_HTML[] PROGMEM = R"=====(
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, maximum-scale=1.0, user-scalable=no">
     <title>Motor Control Interface</title>
     <style>
         * {
@@ -124,29 +125,57 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
-        /* Firefox styles */
-        #verticalSlider::-moz-range-thumb,
-        #horizontalSlider::-moz-range-thumb {
-            width: 28px;
-            height: 28px;
-            background: #007BFF;
-            cursor: pointer;
-            border-radius: 50%;
-            border: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-
-        #verticalSlider::-moz-range-track,
-        #horizontalSlider::-moz-range-track {
-            background: #e0e0e0;
-            height: 12px;
-            border-radius: 6px;
-        }
-
         /* Value displays */
         .value-display {
             font-size: 1.1rem;
             margin: 5px 0;
+        }
+
+        /* New PID Controller container styles */
+        #pidControlContainer {
+            margin-top: 40px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            width: auto;
+            /* overflow-wrap: break-word; */
+            text-wrap: stable;
+        }
+
+        #pidControlContainer label {
+            font-weight: bold;
+            color: #333;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        #pidControlContainer input[type="number"] {
+            width: 80px;
+            padding: 10px;
+            font-size: 1rem;
+            margin: 5px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        #pidControlContainer input[type="checkbox"] {
+            margin: 10px;
+        }
+
+        #pidControlContainer button {
+            background: #007BFF;
+            color: white;
+            font-size: 1.1rem;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #pidControlContainer button:hover {
+            background: #0056b3;
         }
 
         @media (min-width: 768px) {
@@ -169,7 +198,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             }
 
             #horizontalSlider {
-                width: 80%;  /* Reduced width for better centering on PC */
+                width: 80%;
             }
 
             #speedDisplay {
@@ -202,6 +231,24 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         </div>
     </div>
 
+    <!-- PID Controller Form -->
+    <div id="pidControlContainer">
+        <label for="kpInput">Kp:</label>
+        <input type="number" id="kpInput" value="1.0" step="0.1">
+
+        <label for="kiInput">Ki:</label>
+        <input type="number" id="kiInput" value="0.5" step="0.1">
+
+        <label for="kdInput">Kd:</label>
+        <input type="number" id="kdInput" value="0.2" step="0.1">
+
+        <label for="enableControl">
+            <input type="checkbox" id="enableControl"> Enable Control
+        </label>
+
+        <button id="sendButton">Send</button>
+    </div>
+
     <script>
         const speedValueElement = document.getElementById("speedValue");
         const rpmValueElement = document.getElementById("rpmValue");
@@ -210,7 +257,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         const verticalSlider = document.getElementById("verticalSlider");
         const horizontalSlider = document.getElementById("horizontalSlider");
 
-        const maxRPM = 130; // You can easily change the maximum RPM here
+        const kpInput = document.getElementById("kpInput");
+        const kiInput = document.getElementById("kiInput");
+        const kdInput = document.getElementById("kdInput");
+        const enableControl = document.getElementById("enableControl");
+        const sendButton = document.getElementById("sendButton");
+
+        const maxRPM = 130;
 
         verticalSlider.addEventListener("input", () => {
             const speedPercent = verticalSlider.value;
@@ -228,6 +281,18 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             updateMotor(verticalSlider.value, horizontalSlider.value);
         });
 
+        sendButton.addEventListener("click", () => {
+            const Kp = parseFloat(kpInput.value);
+            const Ki = parseFloat(kiInput.value);
+            const Kd = parseFloat(kdInput.value);
+            const controlEnabled = enableControl.checked;
+
+            // Send the PID values and control status to the server
+            console.log("PID Values:", Kp, Ki, Kd, "Control Enabled:", controlEnabled);
+            // You can now send these values to the server as needed
+            updatePID(Kp, Ki, Kd, controlEnabled);
+        });
+
         function calculateRPM(percent) {
             return Math.round((percent / 100.0) * maxRPM);
         }
@@ -241,15 +306,31 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 return `Left ${-turnRate} %`;
             }
         }
+ 
+        function updatePID(Kp, Ki, Kd, enabled) {
+        	const queryString = `${window.location.origin}/setPID?` +
+                `kp=${Kp}` +
+                `&ki=${Ki}` +
+                `&kd=${Kd}`+
+                `&enabled=${enabled == true ? 1 : 0}`;
+             console.log(queryString);
+
+            fetch(queryString)
+                .then(response => response.text())
+                .then(data => {
+                    console.log('PID Parameters:', data);
+                })
+                .catch(error => {
+                    console.error('Error setting PID:', error);
+                });
+        }
 
         function updateMotor(speed, turnRate) {
-            // Build the query string
             const queryString = `${window.location.origin}/setMotor?` +
                 `speed=${Math.abs(speed)}` +
                 `&forwardBackward=${speed >= 0 ? "Forward" : "Backward"}` +
                 `&turnRate=${turnRate}`;
 
-            // Send data to the server
             fetch(queryString)
                 .then(response => response.text())
                 .then(data => {
