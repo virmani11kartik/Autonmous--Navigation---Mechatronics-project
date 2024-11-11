@@ -85,8 +85,8 @@ void IRAM_ATTR updateLeftEncoder() {
   int current_direction = 0;
   int current_pulse_count = 0;
   readEncoderValue(left_encoder_A, left_encoder_B, lastEncodedLeft, current_direction, current_pulse_count);
-  leftPulseCount = current_pulse_count;
-  leftDirection = current_direction;
+  leftPulseCount += current_pulse_count;
+  leftDirection = current_direction * -1; // Motor is the opposite direction for wheels to go in the same direction
 }
 
 // Interrupt function to update the encoder position, add IRAM_ATTR to run in IRAM
@@ -99,7 +99,7 @@ void IRAM_ATTR updateRightEncoder() {
   int current_direction = 0;
   int current_pulse_count = 0;
   readEncoderValue(right_encoder_A, right_encoder_B, lastEncodedRight, current_direction, current_pulse_count);
-  rightPulseCount = current_pulse_count;
+  rightPulseCount += current_pulse_count;
   rightDirection = current_direction;
 }
 
@@ -155,8 +155,7 @@ void loop() {
     // Calculate the RPM for the left and right motors
     rpmCalculation();
     // Log the RPM values
-    // Serial.printf("Left RPM: %d, Right RPM: %d\n", leftRPM, rightRPM);
-
+    Serial.printf("Left RPM: %d, Left Direction: %d, Right RPM: %d, Right Direction: %d\n", leftRPM, leftDirection, rightRPM, rightDirection);
     // Update the control signals based on the current RPM
     updateControlSignals();
     // Log the control signals
