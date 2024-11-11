@@ -290,10 +290,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         <input type="number" id="kpInput" value="1.0" step="0.1">
 
         <label for="kiInput">Ki:</label>
-        <input type="number" id="kiInput" value="0.5" step="0.1">
+        <input type="number" id="kiInput" value="0.1" step="0.1">
 
         <label for="kdInput">Kd:</label>
-        <input type="number" id="kdInput" value="0.2" step="0.1">
+        <input type="number" id="kdInput" value="0.0" step="0.1">
 
         <label for="enableControl">
             <input type="checkbox" id="enableControl"> Enable Control
