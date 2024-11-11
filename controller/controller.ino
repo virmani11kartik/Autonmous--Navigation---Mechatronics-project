@@ -10,7 +10,7 @@
 #define MOTOR_STOP_DELAY 10
 
 #define RPM_TO_RAD_PER_SEC 0.10471975512                   // Conversion factor from RPM to rad/s
-#define MAX_RPM 120                                        // Maximum RPM of the motor
+#define MAX_RPM 95                                        // Maximum RPM of the motor - on average load.
 #define MAX_WHEEL_VELOCTY (MAX_RPM * RPM_TO_RAD_PER_SEC)   // Maximum wheel velocity in rad/s
 #define WHEEL_RADIUS 36                                    // Wheel radius in millimeters
 
@@ -60,6 +60,7 @@ const int encoderPinLeftB = 7;
 const int encoderPinRightA = 0;
 const int encoderPinRightB = 1;
 const int pulsesPerRevolution = 48;
+const int gearRatio = 100;
 
 // Variables for the encoder
 volatile int leftDirection = 1;   // Direction of the left motor
@@ -71,7 +72,7 @@ int lastEncodedRight = 0;         // Store the last encoded state (A and B)
 
 // Rpm calculation variables
 volatile unsigned long prevRpmCalcTime = 0;
-const unsigned long rpmCalcInterval = 100;
+const unsigned long rpmCalcInterval = 50;
 unsigned int leftRPM = 0;
 unsigned int rightRPM = 0;
 
@@ -159,7 +160,7 @@ void loop() {
     // Update the control signals based on the current RPM
     updateControlSignals();
     // Log the control signals
-    // Serial.printf("Control Signal Left: %d, Control Signal Right: %d\n", controlSignalLeft, controlSignalRight);
+    Serial.printf("Control Signal Left: %d, Control Signal Right: %d\n", controlSignalLeft, controlSignalRight);
 
 
     // Reset the pulse count for the next interval
@@ -306,6 +307,9 @@ void sendMotorSignals(
 void rpmCalculation() {
   leftRPM = (abs(leftPulseCount) * 60000) / ((pulsesPerRevolution) * (millis() - prevRpmCalcTime));
   rightRPM = (abs(rightPulseCount) * 60000) / ((pulsesPerRevolution) * (millis() - prevRpmCalcTime));
+
+  leftRPM = (leftRPM * 2) / gearRatio;
+  rightRPM = (rightRPM * 2) / gearRatio;
 }
 
 void updateControlSignals() {
