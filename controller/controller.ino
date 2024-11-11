@@ -35,10 +35,11 @@ volatile unsigned long serverPrevTime = 0;
 const unsigned long serverInterval = 50;
 
 // Define the pins for the motor control
+// Inverter 4 -> IN 2, Inverter 2 -> IN 4
 const int pwmPinLeft = 4;  // PWM output pin (connected to EN pin on H-Bridge)
 const int pwmPinRight = 5;  // PWM output pin (connected to EN pin on H-Bridge)
-const int dirPinLeft = 18;  // Direction control pin 1 (for left motor)
-const int dirPinRight = 19;  // Direction control pin 2 (for right motor)
+const int dirPinLeft = 18;  // Direction control pin 1 (for left motor) -> Inverter 1, IN 3
+const int dirPinRight = 19;  // Direction control pin 2 (for right motor) -> Inverter 3, IN 1
 
 // Gloal variable to store current desired PWM for left and right motors
 int desiredLeftPWM = 0;
@@ -55,10 +56,10 @@ float KD = 0.0;
 int ENABLE_CONTROL = 0;
 
 // Define the pins for the encoder A and B channels
-const int encoderPinLeftA = 6;
-const int encoderPinLeftB = 7;
-const int encoderPinRightA = 0;
-const int encoderPinRightB = 1;
+const int encoderPinLeftA = 7;
+const int encoderPinLeftB = 6;
+const int encoderPinRightA = 1;
+const int encoderPinRightB = 0;
 const int pulsesPerRevolution = 48;
 const int gearRatio = 100;
 
@@ -194,7 +195,8 @@ void handleSetMotor() {
     float turn_rate = server.arg("turnRate").toFloat(); // percent from -50 to 50
 
     // Convert speed input to linear velocity
-    float linear_velocity = (forward_backward == "Forward" ? 1 : -1) * (motor_speed / 100.0) * MAX_LINEAR_VELOCTY;
+    // FIX: Forward -> -1, Backward -> 1, compensating for current wiring
+    float linear_velocity = (forward_backward == "Forward" ? -1 : 1) * (motor_speed / 100.0) * MAX_LINEAR_VELOCTY;
     float angular_velocity = (turn_rate/50.0) * MAX_ANGULAR_VELOCITY;
 
     int current_pwm_left, current_pwm_right;
