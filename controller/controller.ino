@@ -157,15 +157,23 @@ void loop() {
     rpmCalculation();
     // Log the RPM values
     Serial.printf("Left RPM: %d, Left Direction: %d, Right RPM: %d, Right Direction: %d\n", leftRPM, leftDirection, rightRPM, rightDirection);
+    
     // Update the control signals based on the current RPM
     updateControlSignals();
     // Log the control signals
     Serial.printf("Control Signal Left: %d, Control Signal Right: %d\n", controlSignalLeft, controlSignalRight);
 
-
     // Reset the pulse count for the next interval
     leftPulseCount = 0;
     rightPulseCount = 0;
+
+    // Prepare controlled motor signals
+    int controlled_left_pwm = 0;
+    int controlled_right_pwm = 0;
+    prepareControlledMotorSignals(desiredLeftPWM, desiredRightPWM, controlled_left_pwm, controlled_right_pwm);
+
+    // Send updated signals to the motors
+    sendMotorSignals(controlled_left_pwm, desiredLeftDirection, controlled_right_pwm, desiredRightDirection);
 
     // Update the time for the next interval
     prevRpmCalcTime = millis();
@@ -191,12 +199,9 @@ void handleSetMotor() {
 
     int current_pwm_left, current_pwm_right;
     int current_direction_left, current_direction_right;
-    prepareMotorSignals(linear_velocity, angular_velocity, 
+    prepareIdealMotorSignals(linear_velocity, angular_velocity, 
                         current_pwm_left, current_direction_left, 
                         current_pwm_right, current_direction_right);
-
-    // Send these signals to the motors
-    sendMotorSignals(current_pwm_left, current_direction_left, current_pwm_right, current_direction_right);
 
     // Update the desired PWM values for the next iteration
     desiredLeftPWM = current_pwm_left;
@@ -231,7 +236,7 @@ void handleControl() {
 }
 
 // Function to prepare the motor signals based on the linear and angular velocity
-void prepareMotorSignals(
+void prepareIdealMotorSignals(
   float linear_velocity, 
   float angular_velocity, 
   int& left_pwm,
@@ -242,21 +247,34 @@ void prepareMotorSignals(
   // Calculate the angular velocity of each wheel
   float omega_l = (linear_velocity - angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
   float omega_r = (linear_velocity + angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
-  Serial.printf("OmegaL: %f, OmegaR: %f\n", omega_l, omega_r);
 
   // Convert the angular velocity to PWM signals
   convertAngularVelocityToPWM(omega_l, left_pwm, left_direction);
   convertAngularVelocityToPWM(omega_r, right_pwm, right_direction);
 
-  // Incorporate control signals if needed
-  if (ENABLE_CONTROL) {
-    left_pwm = controlSignalLeft + left_pwm;
-    right_pwm = controlSignalRight + right_pwm;
-  }
-
   // Clip to the limits of PWM
   left_pwm = min(max(left_pwm, 0), LEDC_RESOLUTION);
   right_pwm = min(max(right_pwm, 0), LEDC_RESOLUTION);
+}
+
+// Function to prepare motor signals after incoporating control signals
+void prepareControlledMotorSignals(
+  int ideal_left_pwm, 
+  int ideal_right_pwm,
+  int& controlled_left_pwm,
+  int& controlled_right_pwm
+  ) {
+  // Incorporate control signals if needed
+  controlled_left_pwm = ideal_left_pwm;
+  controlled_right_pwm = ideal_right_pwm;
+  if (ENABLE_CONTROL) {
+    controlled_left_pwm += controlSignalLeft;
+    controlled_right_pwm += controlSignalRight;
+  }
+
+  // Clip to the limits of PWM
+  controlled_left_pwm = min(max(controlled_left_pwm, 0), LEDC_RESOLUTION);
+  controlled_right_pwm = min(max(controlled_right_pwm, 0), LEDC_RESOLUTION);
 }
 
 // Function to convert angular velocity to PWM signal
@@ -298,6 +316,9 @@ void sendMotorSignals(
   // Set the direction of the motors
   digitalWrite(dirPinLeft, left_direction);
   digitalWrite(dirPinRight, right_direction);
+
+  // Print pwms
+  Serial.printf("Left PWM: %d, Right PWM: %d\n", left_pwm, right_pwm);
 
   // Set the PWM signals for the motors
   ledcWrite(pwmPinLeft, left_pwm);
