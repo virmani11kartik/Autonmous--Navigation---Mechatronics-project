@@ -316,6 +316,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         const kdInput = document.getElementById("kdInput");
         const enableControl = document.getElementById("enableControl");
         const sendButton = document.getElementById("sendButton");
+        const resetButton = document.getElementById("resetButton");
         const resetDirectionButton = document.getElementById("resetDirectionButton");
 
         const maxRPM = 110;
@@ -347,8 +348,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             // You can now send these values to the server as needed
             updatePID(Kp, Ki, Kd, controlEnabled);
         });
-        
-        const resetButton = document.getElementById("resetButton");
+    
 
         resetButton.addEventListener("click", () => {
             // Set both sliders to zero
@@ -408,10 +408,18 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     break;
                 case 'f':
                     event.preventDefault();
+                    verticalSlider.value = 0;
+                    horizontalSlider.value = 0;
+                    speedValueElement.innerText = 0;
+                    rpmValueElement.innerText = 0;
+                    directionValueElement.innerText = "Neutral";
+                    forwardBackwardValueElement.innerText = "Neutral";
                     updateMotor(0, 0);
                     break;
                 case 'q':
                     event.preventDefault();
+                    horizontalSlider.value = 0;
+                    directionValueElement.innerText = "Neutral";
                     const currentSpeed = verticalSlider.value;
                     updateMotor(currentSpeed, 0);
                     break;
@@ -468,6 +476,5 @@ const char INDEX_HTML[] PROGMEM = R"=====(
     </script>
 </body>
 </html>
-
 
 )=====";
