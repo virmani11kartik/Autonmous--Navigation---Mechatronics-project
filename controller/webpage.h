@@ -180,6 +180,26 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         #resetButton {
             margin-top: 30px;
+            background: #f73636;
+            color: white;
+            font-size: 1.1rem;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #resetButton:hover {
+            background: #bc1c1c;
+        }
+        
+        #resetButton:active {
+            background: #9f1212;
+        }
+
+        #resetDirectionButton {
+            margin-top: 30px;
             background: #007BFF;
             color: white;
             font-size: 1.1rem;
@@ -191,13 +211,19 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         }
 
         /* Hover effect for reset button */
-        #resetButton:hover {
+        #resetDirectionButton:hover {
             background: #0056b3;
         }
 
         /* Active (pressed) effect for reset button */
-        #resetButton:active {
+        #resetDirectionButton:active {
             background: #004080;
+        }
+
+        #buttonContainer {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
         }
 
         @media (min-width: 768px) {
@@ -253,7 +279,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         </div>
     </div>
 
-    <button id="resetButton">Reset</button>
+    <div id="buttonContainer">
+        <button id="resetButton">Reset</button>
+        <button id="resetDirectionButton">Neutral</button>
+    </div>
     
     <!-- PID Controller Form -->
     <div id="pidControlContainer">
@@ -287,6 +316,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         const kdInput = document.getElementById("kdInput");
         const enableControl = document.getElementById("enableControl");
         const sendButton = document.getElementById("sendButton");
+        const resetDirectionButton = document.getElementById("resetDirectionButton");
 
         const maxRPM = 110;
 
@@ -333,6 +363,59 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             // Send update to server to reset motor settings
             updateMotor(0, 0);
+        });
+        
+        
+        // Add event listener for the reset direction button
+        resetDirectionButton.addEventListener("click", () => {
+            // Set horizontal slider to zero
+            horizontalSlider.value = 0;
+
+            // Update displayed values
+            directionValueElement.innerText = "Neutral";
+
+            // Send update to server to reset direction
+            updateMotor(verticalSlider.value, 0);
+        });
+
+        // Add keyboard controls
+        document.addEventListener('keydown', function(event) {
+            const key = event.key.toLowerCase();
+            switch(key) {
+                case 'w':
+                case 'arrowup':
+                    event.preventDefault();
+                    verticalSlider.value = Math.min(parseInt(verticalSlider.value) + 5, 100);
+                    verticalSlider.dispatchEvent(new Event('input'));
+                    break;
+                case 's':
+                case 'arrowdown':
+                    event.preventDefault();
+                    verticalSlider.value = Math.max(parseInt(verticalSlider.value) - 5, -100);
+                    verticalSlider.dispatchEvent(new Event('input'));
+                    break;
+                case 'a':
+                case 'arrowleft':
+                    event.preventDefault();
+                    horizontalSlider.value = Math.max(parseInt(horizontalSlider.value) - 5, -50);
+                    horizontalSlider.dispatchEvent(new Event('input'));
+                    break;
+                case 'd':
+                case 'arrowright':
+                    event.preventDefault();
+                    horizontalSlider.value = Math.min(parseInt(horizontalSlider.value) + 5, 50);
+                    horizontalSlider.dispatchEvent(new Event('input'));
+                    break;
+                case 'f':
+                    event.preventDefault();
+                    updateMotor(0, 0);
+                    break;
+                case 'q':
+                    event.preventDefault();
+                    const currentSpeed = verticalSlider.value;
+                    updateMotor(currentSpeed, 0);
+                    break;
+            }
         });
 
         function calculateRPM(percent) {
