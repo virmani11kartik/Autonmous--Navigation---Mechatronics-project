@@ -10,7 +10,7 @@
 #define MOTOR_STOP_DELAY 10
 
 #define RPM_TO_RAD_PER_SEC 0.10471975512                   // Conversion factor from RPM to rad/s
-#define MAX_RPM 95                                        // Maximum RPM of the motor - on average load.
+#define MAX_RPM 110                                        // Maximum RPM of the motor - on average load.
 #define MAX_WHEEL_VELOCTY (MAX_RPM * RPM_TO_RAD_PER_SEC)   // Maximum wheel velocity in rad/s
 #define WHEEL_RADIUS 36                                    // Wheel radius in millimeters
 
@@ -245,8 +245,8 @@ void prepareIdealMotorSignals(
   int& right_direction
 ) {
   // Calculate the angular velocity of each wheel
-  float omega_l = (linear_velocity - angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
-  float omega_r = (linear_velocity + angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
+  float omega_l = (linear_velocity + angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
+  float omega_r = (linear_velocity - angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
 
   // Convert the angular velocity to PWM signals
   convertAngularVelocityToPWM(omega_l, left_pwm, left_direction);
@@ -318,7 +318,7 @@ void sendMotorSignals(
   digitalWrite(dirPinRight, right_direction);
 
   // Print pwms
-  Serial.printf("Left PWM: %d, Right PWM: %d\n", left_pwm, right_pwm);
+  Serial.printf("Actual Left PWM: %d, Actual Right PWM: %d\n", left_pwm, right_pwm);
 
   // Set the PWM signals for the motors
   ledcWrite(pwmPinLeft, left_pwm);

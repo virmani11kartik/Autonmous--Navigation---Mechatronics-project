@@ -288,7 +288,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         const enableControl = document.getElementById("enableControl");
         const sendButton = document.getElementById("sendButton");
 
-        const maxRPM = 130;
+        const maxRPM = 110;
 
         verticalSlider.addEventListener("input", () => {
             const speedPercent = verticalSlider.value;
