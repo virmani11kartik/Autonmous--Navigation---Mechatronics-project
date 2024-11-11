@@ -247,8 +247,8 @@ void prepareIdealMotorSignals(
   int& right_direction
 ) {
   // Calculate the angular velocity of each wheel
-  float omega_l = (linear_velocity + angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
-  float omega_r = (linear_velocity - angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
+  float omega_l = (linear_velocity - angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
+  float omega_r = (linear_velocity + angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
 
   // Convert the angular velocity to PWM signals
   convertAngularVelocityToPWM(omega_l, left_pwm, left_direction);
