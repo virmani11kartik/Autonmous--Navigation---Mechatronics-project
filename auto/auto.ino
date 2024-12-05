@@ -85,7 +85,7 @@ unsigned int rightRPM = 0;
 
 // Variables to store received commands
 volatile int receivedAngle = 0;
-volatile char receivedDirection[10] = "FORWARD";
+char receivedDirection[10] = "FORWARD";  // Remove volatile
 volatile bool newCommandReceived = false;
 
 // Add global variable for default PWM
@@ -96,6 +96,9 @@ WebServer server(80);  // Add this with other global variables at the top
 
 // Add to global variables
 bool autonomousMode = true;  // Default to autonomous mode
+
+// Add these function declarations at the top with other function declarations
+void handleControl();
 
 // Interrupt function to update the encoder position, add IRAM_ATTR to run in IRAM
 void IRAM_ATTR updateLeftEncoder() {
@@ -167,6 +170,13 @@ void setup() {
   server.on("/setMode", handleSetMode);
   server.begin();
   Serial.println("HTTP server started");
+
+  // Initialize UDP properly
+  if(udp.begin(8888)) {
+    Serial.println("UDP server started at port 8888");
+  } else {
+    Serial.println("UDP server failed to start");
+  }
 }
 
 /**
@@ -177,22 +187,35 @@ void setup() {
  * 4. RPM calculations and PID control
  */
 void loop() {
-  // Add server handling
-  server.handleClient();
+  // Handle web server requests at regular intervals
+  if (millis() - serverPrevTime > serverInterval) {
+    server.handleClient();
+    serverPrevTime = millis();
+  }
 
-  // Handle UDP packets from sensor.ino
+  // Handle UDP packets
   int packetSize = udp.parsePacket();
   if (packetSize) {
-    int len = udp.read(incomingPacket, sizeof(incomingPacket) - 1);
+    char incomingPacket[255];
+    int len = udp.read(incomingPacket, 255);
     if (len > 0) {
-      incomingPacket[len] = 0; // Null-terminate the string
+      incomingPacket[len] = 0;  // Null terminate
+      Serial.printf("[Successful] Received packet: %s\n", incomingPacket);
+      
+      // Parse JSON
       StaticJsonDocument<200> doc;
       DeserializationError error = deserializeJson(doc, incomingPacket);
+      
       if (!error) {
         receivedAngle = doc["angle"];
         const char* dir = doc["direction"];
-        strncpy(receivedDirection, dir, sizeof(receivedDirection));
+        strncpy((char*)receivedDirection, dir, sizeof(receivedDirection) - 1);
+        receivedDirection[sizeof(receivedDirection) - 1] = '\0';
         newCommandReceived = true;
+        
+        // Print received values
+        Serial.printf("Received: angle=%d, direction=%s\n", 
+                      receivedAngle, receivedDirection);
       }
     }
   }
@@ -228,20 +251,17 @@ void stopCar() {
 
 // Function to move forward
 void moveForward() {
-  // ...code to move forward using motor functions...
-  sendMotorSignals(idealPWM, 1, idealPWM, 1);
+  sendMotorSignals(defaultPWM, 1, defaultPWM, 1);  // Use defaultPWM instead of idealPWM
 }
 
 // Function to turn left
 void turnLeft() {
-  // ...code to turn left...
-  sendMotorSignals(idealPWM / 2, 1, idealPWM, 1);
+  sendMotorSignals(defaultPWM / 2, 1, defaultPWM, 1);  // Use defaultPWM instead of idealPWM
 }
 
 // Function to turn right
 void turnRight() {
-  // ...code to turn right...
-  sendMotorSignals(idealPWM, 1, idealPWM / 2, 1);
+  sendMotorSignals(defaultPWM, 1, defaultPWM / 2, 1);  // Use defaultPWM instead of idealPWM
 }
 
 // Function to prepare the motor signals based on the linear and angular velocity
@@ -319,7 +339,6 @@ void sendMotorSignals(
   if (right_direction != desiredRightDirection) {
     ledcWrite(pwmPinRight, 0);
   }
-  delay(MOTOR_STOP_DELAY);
 #endif
 
   // Set the direction of the motors
@@ -452,6 +471,20 @@ void handleSetMode() {
     autonomousMode = (mode == "autonomous");
     server.send(200, "text/plain", "Mode updated");
     Serial.printf("Mode updated to: %s\n", autonomousMode ? "autonomous" : "manual");
+  } else {
+    server.send(400, "text/plain", "Bad Request");
+  }
+}
+
+// Add the handleControl function implementation before setup()
+void handleControl() {
+  if (server.hasArg("kp") && server.hasArg("ki") && server.hasArg("kd") && server.hasArg("enabled")) {
+    KP = server.arg("kp").toFloat();
+    KI = server.arg("ki").toFloat();
+    KD = server.arg("kd").toFloat();
+    ENABLE_CONTROL = server.arg("enabled").toInt();
+    server.send(200, "text/plain", "Control parameters updated");
+    Serial.printf("Control parameters updated: KP: %f, KI: %f, KD: %f, ENABLED: %d\n", KP, KI, KD, ENABLE_CONTROL);
   } else {
     server.send(400, "text/plain", "Bad Request");
   }
