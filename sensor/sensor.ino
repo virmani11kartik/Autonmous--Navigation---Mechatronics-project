@@ -25,24 +25,8 @@ WiFiUDP udp;
 WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 
-// Constants
-const int wall_distance_setpoint = 6;         // Desired wall distance (in inches)
-const int front_collision_threshold = 4;      // Minimum distance to obstacle in front
-const float Kp_steering = 2.0;                // Proportional gain for wall alignment
-const float Kp_alignment = 1.5;               // Proportional gain for misalignment correction
-
-// Sensor instances
-Adafruit_VL53L0X loxFront = Adafruit_VL53L0X();
-Adafruit_VL53L0X loxLeft = Adafruit_VL53L0X();
-Adafruit_VL53L0X loxRight = Adafruit_VL53L0X();
-
 // Function prototypes
-void initToFSensors();
-void readToFSensors(int &d_front, int &d_left, int &d_right);
-void wallFollowLogic();
 void sendSteeringCommand(int angle, const char* direction);
-void handleRoot();          // Function to handle the root web page
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 void broadcastSensorData();
 
 /**
@@ -53,8 +37,16 @@ void broadcastSensorData();
  */
 void setup() {
   Serial.begin(115200);
+  delay(100); // Give serial time to start up
 
-  // Connect to auto.ino's Wi-Fi network with static IP
+  // Initialize sensors first
+  Serial.println("Initializing ToF sensors...");
+  initToFSensors();
+  Serial.println("ToF sensors initialized successfully!");
+  delay(500); // Give sensors time to stabilize
+
+  // Now continue with WiFi and other setup
+  Serial.println("Connecting to WiFi...");
   WiFi.mode(WIFI_STA);
   WiFi.config(local_IP, gateway, subnet);
   WiFi.begin(ssid, password);
@@ -76,9 +68,6 @@ void setup() {
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
   Serial.println("WebSocket server started.");
-
-  // Initialize sensors
-  initToFSensors(); // Initialize sensors from wall_follow.h
 }
 
 /**
@@ -103,133 +92,6 @@ void loop() {
   delay(100); // Adjust as needed
 }
 
-// Function to initialize the sensors
-void initToFSensors() {
-  // Initialize front sensor
-  if (!loxFront.begin()) {
-    Serial.println("Failed to initialize front sensor!");
-    while (1);
-  }
-  // Initialize left sensor
-  if (!loxLeft.begin()) {
-    Serial.println("Failed to initialize left sensor!");
-    while (1);
-  }
-  // Initialize right sensor
-  if (!loxRight.begin()) {
-    Serial.println("Failed to initialize right sensor!");
-    while (1);
-  }
-  Serial.println("All sensors initialized.");
-}
-
-// Function to read distances from sensors
-void readToFSensors(int &d_front, int &d_left, int &d_right) {
-  VL53L0X_RangingMeasurementData_t measure;
-
-  // Front sensor
-  loxFront.rangingTest(&measure, false);
-  if (measure.RangeStatus != 4) {
-    d_front = measure.RangeMilliMeter;
-  } else {
-    d_front = -1; // Out of range
-  }
-
-  // Left sensor
-  loxLeft.rangingTest(&measure, false);
-  if (measure.RangeStatus != 4) {
-    d_left = measure.RangeMilliMeter;
-  } else {
-    d_left = -1; // Out of range
-  }
-
-  // Right sensor
-  loxRight.rangingTest(&measure, false);
-  if (measure.RangeStatus != 4) {
-    d_right = measure.RangeMilliMeter;
-  } else {
-    d_right = -1; // Out of range
-  }
-}
-
-// Wall-following logic function
-void wallFollowLogic() {
-  int d_front, d_left, d_right;
-  readToFSensors(d_front, d_left, d_right);
-
-  // Debugging: print sensor values
-  Serial.print("Front: "); Serial.print(d_front);
-  Serial.print(" Left: "); Serial.print(d_left);
-  Serial.print(" Right: "); Serial.println(d_right);
-
-  int angle = 0;
-  const char* direction = "FORWARD";
-
-  // Collision avoidance
-  if (d_front > 0 && d_front < front_collision_threshold * 25.4) { // Convert inches to mm
-    if (d_left > d_right) {
-      angle = 45;
-      direction = "LEFT";
-    } else {
-      angle = 45;
-      direction = "RIGHT";
-    }
-    delay(500);
-  }
-  // Wall alignment and following logic
-  else {
-    // Wall alignment logic
-    int alignment_error = d_right - d_left;
-    if (abs(alignment_error) > 50) { // If misaligned by more than 50 mm
-      int correction_angle = Kp_alignment * alignment_error;
-      if (alignment_error > 0) {
-        angle = correction_angle;
-        direction = "RIGHT";
-      } else {
-        angle = abs(correction_angle);
-        direction = "LEFT";
-      }
-      delay(100);
-    } else {
-      // Wall-following logic
-      if (abs(d_left - wall_distance_setpoint * 25.4) < abs(d_right - wall_distance_setpoint * 25.4)) {
-        // Follow left wall
-        int error = wall_distance_setpoint * 25.4 - d_left;
-        int steering_angle = Kp_steering * error;
-
-        if (error > 0) {
-          angle = steering_angle;
-          direction = "LEFT";
-        } else if (error < 0) {
-          angle = abs(steering_angle);
-          direction = "RIGHT";
-        } else {
-          angle = 0;
-          direction = "FORWARD";
-        }
-      } else {
-        // Follow right wall
-        int error = wall_distance_setpoint * 25.4 - d_right;
-        int steering_angle = Kp_steering * error;
-
-        if (error > 0) {
-          angle = steering_angle;
-          direction = "RIGHT";
-        } else if (error < 0) {
-          angle = abs(steering_angle);
-          direction = "LEFT";
-        } else {
-          angle = 0;
-          direction = "FORWARD";
-        }
-      }
-    }
-  }
-
-  // Send steering command to auto.ino
-  sendSteeringCommand(angle, direction);
-}
-
 /**
  * Sends steering commands to auto.ino via UDP
  * @param angle: Desired turning angle
@@ -246,16 +108,6 @@ void sendSteeringCommand(int angle, const char* direction) {
   udp.beginPacket(udpAddress, udpPort);
   udp.write((uint8_t*)jsonString, strlen(jsonString));
   udp.endPacket();
-}
-
-// Web server handler for root page
-void handleRoot() {
-  server.send_P(200, "text/html", WEBPAGE);
-}
-
-// WebSocket event handler
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
-  // Handle WebSocket events 
 }
 
 /**

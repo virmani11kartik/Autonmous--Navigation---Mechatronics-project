@@ -1,10 +1,40 @@
+#ifndef WEB_H
+#define WEB_H
+
+#include <WebServer.h>
+#include <WebSocketsServer.h>
+
+extern WebServer server;
+extern WebSocketsServer webSocket;
+
+void handleRoot() {
+    server.send(200, "text/html", WEBPAGE);
+}
+
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
+    switch(type) {
+        case WStype_DISCONNECTED:
+            Serial.printf("[%u] Disconnected!\n", num);
+            break;
+        case WStype_CONNECTED:
+            Serial.printf("[%u] Connected from %d.%d.%d.%d\n", num);
+            break;
+        case WStype_TEXT:
+            Serial.printf("[%u] Received text: %s\n", num, payload);
+            break;
+    }
+}
+
+void broadcastSensorData();
+
+#endif
+
 const char WEBPAGE[] PROGMEM = R"=====(
 <!DOCTYPE html>
 <html>
 <head>
   <title>Sensor Data Display</title>
   <style>
-    /* Add your CSS styles here */
     body {
       font-family: Arial, sans-serif;
       background-color: #222;

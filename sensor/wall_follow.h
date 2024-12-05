@@ -14,44 +14,59 @@ const float Kp_alignment = 1.5;               // Proportional gain for misalignm
 void initToFSensors();
 void readToFSensors(int &d_front, int &d_left, int &d_right);
 void wallFollowLogic();
-void steer(int angle, const char* direction); // Implemented in auto.ino
+void sendSteeringCommand(int angle, const char* direction); // Changed from steer to sendSteeringCommand
 
-// Define pins for the ToF sensors
-#define SDA_PIN_FRONT 5
-#define SCL_PIN_FRONT 4
-
-#define SDA_PIN_LEFT 10
-#define SCL_PIN_LEFT 1
-
-#define SDA_PIN_RIGHT 19
-#define SCL_PIN_RIGHT 18
+// Define pins - use only 3.3V capable GPIO pins
+#define SDA_PIN 19    // Changed from 21
+#define SCL_PIN 4     // Changed from 22
+#define XSHUT_FRONT 1 // Changed from 5
+#define XSHUT_LEFT 5  // Changed from 18
+#define XSHUT_RIGHT 10 // Changed from 23
 
 // Create instances for each sensor
 Adafruit_VL53L0X loxFront = Adafruit_VL53L0X();
 Adafruit_VL53L0X loxLeft = Adafruit_VL53L0X();
 Adafruit_VL53L0X loxRight = Adafruit_VL53L0X();
 
-// Function to initialize the sensors
+// Simplify the initToFSensors() function to match working implementation
 void initToFSensors() {
-  // FRONT sensor
-  Wire.begin(SDA_PIN_FRONT, SCL_PIN_FRONT);
-  if (!loxFront.begin()) {
-    Serial.println("Failed to initialize front ToF sensor");
-    while (1);
+  // Configure I2C
+  Wire.begin(SDA_PIN, SCL_PIN);
+  delay(10);
+  
+  // Configure XSHUT pins as outputs
+  pinMode(XSHUT_FRONT, OUTPUT);
+  pinMode(XSHUT_LEFT, OUTPUT);
+  pinMode(XSHUT_RIGHT, OUTPUT);
+
+  // Power down all sensors
+  digitalWrite(XSHUT_FRONT, LOW);
+  digitalWrite(XSHUT_LEFT, LOW);
+  digitalWrite(XSHUT_RIGHT, LOW);
+  delay(10);
+
+  // Initialize Front sensor
+  digitalWrite(XSHUT_FRONT, HIGH);
+  delay(50);
+  if (!loxFront.begin(0x30)) {
+    Serial.println("Failed to initialize front sensor");
+    while(1);
   }
 
-  // LEFT sensor
-  Wire.begin(SDA_PIN_LEFT, SCL_PIN_LEFT);
-  if (!loxLeft.begin()) {
-    Serial.println("Failed to initialize left ToF sensor");
-    while (1);
+  // Initialize Left sensor
+  digitalWrite(XSHUT_LEFT, HIGH);
+  delay(50);
+  if (!loxLeft.begin(0x31)) {
+    Serial.println("Failed to initialize left sensor");
+    while(1);
   }
 
-  // RIGHT sensor
-  Wire.begin(SDA_PIN_RIGHT, SCL_PIN_RIGHT);
-  if (!loxRight.begin()) {
-    Serial.println("Failed to initialize right ToF sensor");
-    while (1);
+  // Initialize Right sensor
+  digitalWrite(XSHUT_RIGHT, HIGH);
+  delay(50);
+  if (!loxRight.begin(0x32)) {
+    Serial.println("Failed to initialize right sensor");
+    while(1);
   }
 }
 
@@ -59,33 +74,21 @@ void initToFSensors() {
 int getFrontDistance() {
   VL53L0X_RangingMeasurementData_t measure;
   loxFront.rangingTest(&measure, false);
-  if (measure.RangeStatus != 4) {
-    return measure.RangeMilliMeter;
-  } else {
-    return -1; // Out of range
-  }
+  return (measure.RangeStatus != 4) ? measure.RangeMilliMeter : -1;
 }
 
 // Function to get distance from left sensor
 int getLeftDistance() {
   VL53L0X_RangingMeasurementData_t measure;
   loxLeft.rangingTest(&measure, false);
-  if (measure.RangeStatus != 4) {
-    return measure.RangeMilliMeter;
-  } else {
-    return -1; // Out of range
-  }
+  return (measure.RangeStatus != 4) ? measure.RangeMilliMeter : -1;
 }
 
 // Function to get distance from right sensor
 int getRightDistance() {
   VL53L0X_RangingMeasurementData_t measure;
   loxRight.rangingTest(&measure, false);
-  if (measure.RangeStatus != 4) {
-    return measure.RangeMilliMeter;
-  } else {
-    return -1; // Out of range
-  }
+  return (measure.RangeStatus != 4) ? measure.RangeMilliMeter : -1;
 }
 
 // Function to read distances from all sensors
@@ -107,26 +110,25 @@ void wallFollowLogic() {
 
   // Collision avoidance
   if (d_front > 0 && d_front < front_collision_threshold) {
-    // Obstacle ahead, decide to turn
     if (d_left > d_right) {
-      steer(45, "LEFT"); // Turn left
+      sendSteeringCommand(45, "LEFT");
     } else {
-      steer(45, "RIGHT"); // Turn right
+      sendSteeringCommand(45, "RIGHT");
     }
-    delay(500); // Wait to complete the turn
-    return;     // Skip further processing
+    delay(500);
+    return;
   }
 
   // Wall alignment logic
   int alignment_error = d_right - d_left;
-  if (abs(alignment_error) > 2) { // If misaligned
+  if (abs(alignment_error) > 2) {
     int correction_angle = Kp_alignment * alignment_error;
     if (alignment_error > 0) {
-      steer(correction_angle, "RIGHT");
+      sendSteeringCommand(correction_angle, "RIGHT");
     } else {
-      steer(abs(correction_angle), "LEFT");
+      sendSteeringCommand(abs(correction_angle), "LEFT");
     }
-    delay(100); // Allow time to adjust
+    delay(100);
     return;
   }
 
@@ -137,11 +139,11 @@ void wallFollowLogic() {
     int steering_angle = Kp_steering * error;
 
     if (error > 0) {
-      steer(steering_angle, "LEFT");
+      sendSteeringCommand(steering_angle, "LEFT");
     } else if (error < 0) {
-      steer(abs(steering_angle), "RIGHT");
+      sendSteeringCommand(abs(steering_angle), "RIGHT");
     } else {
-      steer(0, "FORWARD");
+      sendSteeringCommand(0, "FORWARD");
     }
   } else {
     // Follow right wall
@@ -149,11 +151,11 @@ void wallFollowLogic() {
     int steering_angle = Kp_steering * error;
 
     if (error > 0) {
-      steer(steering_angle, "RIGHT");
+      sendSteeringCommand(steering_angle, "RIGHT");
     } else if (error < 0) {
-      steer(abs(steering_angle), "LEFT");
+      sendSteeringCommand(abs(steering_angle), "LEFT");
     } else {
-      steer(0, "FORWARD");
+      sendSteeringCommand(0, "FORWARD");
     }
   }
 }
