@@ -251,17 +251,17 @@ void stopCar() {
 
 // Function to move forward
 void moveForward() {
-  sendMotorSignals(defaultPWM, 1, defaultPWM, 1);  // Use defaultPWM instead of idealPWM
+  sendMotorSignals(defaultPWM, LOW, defaultPWM, LOW);  // Set direction to LOW for forward
 }
 
 // Function to turn left
 void turnLeft() {
-  sendMotorSignals(defaultPWM / 2, 1, defaultPWM, 1);  // Use defaultPWM instead of idealPWM
+  sendMotorSignals(defaultPWM / 2, LOW, defaultPWM, LOW);
 }
 
 // Function to turn right
 void turnRight() {
-  sendMotorSignals(defaultPWM, 1, defaultPWM / 2, 1);  // Use defaultPWM instead of idealPWM
+  sendMotorSignals(defaultPWM, LOW, defaultPWM / 2, LOW);
 }
 
 // Function to prepare the motor signals based on the linear and angular velocity
@@ -306,14 +306,17 @@ void prepareControlledMotorSignals(
   controlled_right_pwm = min(max(controlled_right_pwm, 0), LEDC_RESOLUTION);
 }
 
-// Function to convert angular velocity to PWM signal
+// Adjust convertAngularVelocityToPWM() to match controller.ino
 void convertAngularVelocityToPWM(float omega, int& pwm_ref, int& direction) {
   if (omega > 0.0) {
-    direction = 1.0;
+    direction = LOW;  // LOW for forward
     pwm_ref = mapf(omega, 0, MAX_WHEEL_VELOCTY, 0, (float)LEDC_RESOLUTION);
-  } else {
-    direction = LOW;
+  } else if (omega < 0.0) {
+    direction = HIGH; // HIGH for backward
     pwm_ref = mapf(-omega, 0, MAX_WHEEL_VELOCTY, 0, (float)LEDC_RESOLUTION);
+  } else {
+    // When omega is zero, maintain the last direction
+    pwm_ref = 0;
   }
 }
 
@@ -322,7 +325,7 @@ float mapf(float value, float inMin, float inMax, float outMin, float outMax) {
   return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
 }
 
-// Function to send the motor signals to the motors
+// Remove inversion of motor directions in sendMotorSignals()
 void sendMotorSignals(
   int left_pwm, 
   int left_direction, 
@@ -433,8 +436,10 @@ void steer(int angle, const char* direction) {
   // Update desired PWM values
   desiredLeftPWM = leftPWM;
   desiredRightPWM = rightPWM;
-  desiredLeftDirection = 1;  // Assuming forward direction
-  desiredRightDirection = 1;
+
+  // Set motor directions to match wiring
+  desiredLeftDirection = LOW;  // LOW for forward
+  desiredRightDirection = LOW;
 
   // Send the motor signals
   sendMotorSignals(desiredLeftPWM, desiredLeftDirection, desiredRightPWM, desiredRightDirection);
@@ -443,7 +448,7 @@ void steer(int angle, const char* direction) {
 // Add handler for PWM setting
 /**
  * Handles PWM setting requests from web interface
- * Updates the default PWM value used for motor control
+ * Updates the default PWM value used for `motor control
  */
 void handleSetPWM() {
   if (server.hasArg("defaultPWM")) {

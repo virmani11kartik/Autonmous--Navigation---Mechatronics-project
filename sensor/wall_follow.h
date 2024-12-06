@@ -5,8 +5,8 @@
 #include <Adafruit_VL53L0X.h>
 
 // Constants
-const int wall_distance_setpoint = 6;         // Desired wall distance (in inches)
-const int front_collision_threshold = 4;      // Minimum distance to obstacle in front
+const int wall_distance_setpoint = 100;         
+const int front_collision_threshold = 100;      // Minimum distance to obstacle in front
 const float Kp_steering = 2.0;                // Proportional gain for wall alignment
 const float Kp_alignment = 1.5;               // Proportional gain for misalignment correction
 
@@ -135,6 +135,7 @@ void wallFollowLogic() {
       sendSteeringCommand(45, (d_left > d_right) ? "LEFT" : "RIGHT");
     }
     delay(500);
+    sendSteeringCommand(0, "FORWARD");
     return;
   }
 
