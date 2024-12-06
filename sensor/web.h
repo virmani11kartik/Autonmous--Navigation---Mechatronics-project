@@ -66,21 +66,19 @@ const char WEBPAGE[] PROGMEM = R"=====(
     </div>
 
     <script>
-        const ws = new WebSocket('ws://' + window.location.host + '/');
-        
-        ws.onopen = function() {
-            console.log('WebSocket Connected');
-        };
-        
-        ws.onerror = function(error) {
-            console.log('WebSocket Error:', error);
-        };
-        
+        // Remove the fetchSensorData function and its setInterval
+
+        // Add WebSocket client script
+        var ws = new WebSocket('ws://' + window.location.hostname + ':81/');
         ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
+            var data = JSON.parse(event.data);
             document.getElementById('frontDistance').textContent = data.front + ' mm';
             document.getElementById('leftDistance').textContent = data.left + ' mm';
             document.getElementById('rightDistance').textContent = data.right + ' mm';
+        };
+
+        ws.onerror = function(error) {
+            console.error('WebSocket Error:', error);
         };
     </script>
 </body>

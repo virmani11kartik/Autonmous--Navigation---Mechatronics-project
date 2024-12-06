@@ -1,14 +1,14 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
-#include <WebServer.h>
-#include <WebSocketsServer.h>
-#include <ArduinoJson.h>
+#include "html510.h"       
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
+#include <ArduinoJson.h>         
 #include "wall_follow.h"
 #include "web.h"
+#include <WebSocketsServer.h>  
 
-// Wi-Fi network details (connect to auto.ino's AP)
+// Wi-Fi network details
 const char* ssid = "GM Lab Public WIFI";   // auto.ino's Wi-Fi SSID
 const char* password = "";                 // auto.ino's Wi-Fi password
 
@@ -22,66 +22,67 @@ const char* udpAddress = "192.168.1.104";  // IP address of auto.ino
 const unsigned int udpPort = 8888;         // UDP port to send data to
 
 WiFiUDP udp;
-WebServer server(80);
-WebSocketsServer webSocket = WebSocketsServer(81);
+
+// Initialize HTML510Server
+HTML510Server h(80);  // Changed from 'server' to 'h' to match example
+
+WebSocketsServer webSocket = WebSocketsServer(81);  // Initialize WebSocket server
 
 // Function prototypes
 void sendSteeringCommand(int angle, const char* direction);
-void broadcastSensorData();
 void handleRoot();
+void handleData();
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 
-/**
- * Main setup function:
- * 1. Initializes WiFi connection to auto.ino's network
- * 2. Sets up web server and WebSocket for sensor data display
- * 3. Initializes ToF sensors
- */
 void setup() {
+  IPAddress myIP(192,168,1,105);  // Your chosen IP
   Serial.begin(115200);
-  
+  delay(1000);  // Add delay to ensure serial monitor is ready
+  Serial.println("\n\nStarting Sensor Node...");
+
   // Initialize sensors first
   Serial.println("Initializing ToF sensors...");
   initToFSensors();
   Serial.println("ToF sensors initialized successfully!");
-  
+
   // Wi-Fi setup as STA mode
   Serial.println("Connecting to WiFi...");
-  WiFi.mode(WIFI_STA);
-  if (!WiFi.config(local_IP, gateway, subnet)) {
-    Serial.println("Failed to configure static IP");
-  }
+  WiFi.mode(WIFI_MODE_STA);
   WiFi.begin(ssid, password);
-  
-  // Wait for connection with timeout and status updates
+  WiFi.config(myIP, IPAddress(192,168,1,1),
+             IPAddress(255,255,255,0));
+
+  Serial.print("Waiting for WiFi connection");
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
     delay(500);
     Serial.print(".");
     attempts++;
   }
+  Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nConnected to WiFi");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
+    Serial.printf("connected to %s on",ssid); Serial.println(myIP);
+    
+    // Start server
+    h.begin();
+    h.attachHandler("/", handleRoot);
+    h.attachHandler("/data", handleData);
+    Serial.println("Web server started");
 
-    // Start web server
-    server.on("/", HTTP_GET, handleRoot);
-    server.begin();
-    Serial.println("HTTP server started");
-
-    // Start WebSocket server
-    webSocket.begin();
-    webSocket.onEvent(webSocketEvent);
+    webSocket.begin();                      // Start WebSocket server
+    webSocket.onEvent(webSocketEvent);      // Attach event handler
     Serial.println("WebSocket server started");
 
     // Start UDP
     if(udp.begin(udpPort)) {
-      Serial.printf("UDP client started at local port %d\n", udpPort);
+      Serial.println("UDP client started");
+      Serial.print("UDP Port: "); Serial.println(udpPort);
     } else {
       Serial.println("UDP client failed to start");
     }
+  } else {
+    Serial.println("Failed to connect to WiFi!");
   }
 }
 
@@ -92,18 +93,37 @@ void setup() {
  * 3. Sensor data broadcasting
  */
 void loop() {
+  static unsigned long lastPrint = 0;
+  
   if (WiFi.status() == WL_CONNECTED) {
-    webSocket.loop();
-    server.handleClient();
-    
-    static unsigned long lastUpdate = 0;
-    if (millis() - lastUpdate >= 100) {  // Update every 100ms
-      broadcastSensorData();
-      lastUpdate = millis();
-    }
-    
-    // Call wall following logic
+    h.serve();
+    webSocket.loop();                       // Handle WebSocket communication
     wallFollowLogic();
+    delay(10);  // Added delay like in example
+    
+    // Print sensor values every 1 second
+    if (millis() - lastPrint > 1000) {
+      int d_front, d_left, d_right;
+      readToFSensors(d_front, d_left, d_right);
+      Serial.printf("Sensors - Front: %d mm, Left: %d mm, Right: %d mm\n", 
+                   d_front, d_left, d_right);
+      lastPrint = millis();
+    }
+
+    // Send sensor data over WebSocket
+    static unsigned long lastBroadcast = 0;
+    if (millis() - lastBroadcast > 100) {   // Broadcast every 100ms
+      int d_front, d_left, d_right;
+      readToFSensors(d_front, d_left, d_right);
+      StaticJsonDocument<200> doc;
+      doc["front"] = d_front;
+      doc["left"] = d_left;
+      doc["right"] = d_right;
+      String jsonString;
+      serializeJson(doc, jsonString);
+      webSocket.broadcastTXT(jsonString);
+      lastBroadcast = millis();
+    }
   } else {
     // Try to reconnect to WiFi if connection is lost
     static unsigned long lastReconnectAttempt = 0;
@@ -142,41 +162,42 @@ void sendSteeringCommand(int angle, const char* direction) {
   }
 }
 
-/**
- * Broadcasts sensor data to connected web clients via WebSocket
- * Sends front, left, and right distances in JSON format
- */
-void broadcastSensorData() {
+// Function to send sensor data to clients
+void handleData() {
   int d_front, d_left, d_right;
   readToFSensors(d_front, d_left, d_right);
 
-  StaticJsonDocument<200> doc;
-  doc["front"] = d_front;
-  doc["left"] = d_left;
-  doc["right"] = d_right;
-  String jsonString;
-  serializeJson(doc, jsonString);
+  // Prepare JSON data
+  String jsonString = "{";
+  jsonString += "\"front\":" + String(d_front) + ",";
+  jsonString += "\"left\":" + String(d_left) + ",";
+  jsonString += "\"right\":" + String(d_right);
+  jsonString += "}";
 
-  webSocket.broadcastTXT(jsonString);
+  // Send JSON data as plain text
+  h.sendplain(jsonString);
 }
 
 // Implement handleRoot function similar to auto.ino
 void handleRoot() {
-  server.send_P(200, "text/html", WEBPAGE);
+  h.sendhtml(WEBPAGE);
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
-  switch(type) {
+  switch (type) {
     case WStype_DISCONNECTED:
       Serial.printf("[%u] Disconnected!\n", num);
       break;
-    case WStype_CONNECTED:
-      {
-        Serial.printf("[%u] Connected from URL: %s\n", num, payload);
-      }
+    case WStype_CONNECTED: {
+      IPAddress ip = webSocket.remoteIP(num);
+      Serial.printf("[%u] Connected from %s\n", num, ip.toString().c_str());
       break;
+    }
     case WStype_TEXT:
-      Serial.printf("[%u] get Text: %s\n", num, payload);
+      Serial.printf("[%u] Received text: %s\n", num, payload);
+      // Handle incoming messages if needed
+      break;
+    default:
       break;
   }
 }
