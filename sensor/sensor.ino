@@ -6,6 +6,7 @@
 #include <ArduinoJson.h>         
 #include "wall_follow.h"
 #include "web.h"
+#include "rgb.h"
 #include <WebSocketsServer.h>  
 
 // Wi-Fi network details
@@ -29,12 +30,13 @@ HTML510Server h(80);  // Changed from 'server' to 'h' to match example
 WebSocketsServer webSocket = WebSocketsServer(81);  // Initialize WebSocket server
 
 // Function prototypes
-void sendSteeringCommand(int angle, const char* direction);
+void sendSteeringCommand(int angle, const char* direction, int speed);
 void handleRoot();
 void handleData();
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 
 void setup() {
+  setupRGB();
   IPAddress myIP(192,168,1,105);  // Your chosen IP
   Serial.begin(115200);
   delay(1000);  // Add delay to ensure serial monitor is ready
@@ -98,15 +100,15 @@ void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     h.serve();
     webSocket.loop();                       // Handle WebSocket communication
-    wallFollowLogic();
+    wallFollowLogic();                      // Send steering command to auto.ino
+
     delay(10);  // Added delay like in example
-    
+    handleRGB();
     // Print sensor values every 1 second
     if (millis() - lastPrint > 1000) {
       int d_front, d_left, d_right;
       readToFSensors(d_front, d_left, d_right);
-      Serial.printf("Sensors - Front: %d mm, Left: %d mm, Right: %d mm\n", 
-                   d_front, d_left, d_right);
+      // Serial.printf("Sensors - Front: %d mm, Left: %d mm, Right: %d mm\n", d_front, d_left, d_right);
       lastPrint = millis();
     }
 
@@ -141,11 +143,13 @@ void loop() {
  * Sends steering commands to auto.ino via UDP
  * @param angle: Desired turning angle
  * @param direction: "LEFT", "RIGHT", or "FORWARD"
+ * @param speed: Desired speed
  */
-void sendSteeringCommand(int angle, const char* direction) {
+void sendSteeringCommand(int angle, const char* direction, int speed) {
   StaticJsonDocument<200> doc;
   doc["angle"] = angle;
   doc["direction"] = direction;
+  doc["speed"] = speed;  // Add speed to JSON
   char jsonString[200];
   serializeJson(doc, jsonString);
 
@@ -153,7 +157,7 @@ void sendSteeringCommand(int angle, const char* direction) {
   if(udp.beginPacket(udpAddress, udpPort)) {
     udp.write((uint8_t*)jsonString, strlen(jsonString));
     if(udp.endPacket()) {
-      Serial.printf("[Successful] Sent packet: %s\n", jsonString);
+      // Serial.printf("[Successful] Sent packet: %s\n", jsonString);
     } else {
       Serial.println("Failed to send UDP packet");
     }

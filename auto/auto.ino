@@ -4,6 +4,7 @@
 #include <web.h>
 #include <pid.h>
 #include <WebServer.h>  
+#include "rgb.h"
 
 #define LEDC_RESOLUTION_BITS 10
 #define LEDC_RESOLUTION ((1 << LEDC_RESOLUTION_BITS) - 1)
@@ -130,6 +131,7 @@ void IRAM_ATTR updateRightEncoder() {
 
 void setup() {
   Serial.begin(115200);
+  setupRGB();
   pinMode(dirPinLeft, OUTPUT);
   pinMode(dirPinRight, OUTPUT);
   pinMode(pwmPinLeft, OUTPUT);
@@ -187,6 +189,7 @@ void setup() {
  * 4. RPM calculations and PID control
  */
 void loop() {
+  handleRGB();
   // Handle web server requests at regular intervals
   if (millis() - serverPrevTime > serverInterval) {
     server.handleClient();
@@ -415,34 +418,28 @@ void readEncoderValue(
  * @param direction: "LEFT", "RIGHT", or "FORWARD"
  */
 void steer(int angle, const char* direction) {
-  // Implement steering logic based on angle and direction
-
-  int basePWM = 500; // Set a base PWM value
-  int leftPWM = basePWM;
-  int rightPWM = basePWM;
+  float maxSteeringAngle = 45;  // Use MAX_STEERING_ANGLE from wall_follow.h
+  float moveSpeed = 0.5 * MAX_LINEAR_VELOCTY;   // Base linear velocity
+  float angular_velocity = (angle / maxSteeringAngle) * MAX_ANGULAR_VELOCITY;
 
   if (strcmp(direction, "LEFT") == 0) {
-    // Reduce speed of left motor to turn left
-    leftPWM -= angle;
+    // Positive angular velocity for left turn
+    angular_velocity = angular_velocity;
   } else if (strcmp(direction, "RIGHT") == 0) {
-    // Reduce speed of right motor to turn right
-    rightPWM -= angle;
+    // Negative angular velocity for right turn
+    angular_velocity = -angular_velocity;
+  } else {
+    // No turning
+    angular_velocity = 0;
   }
 
-  // Ensure PWM values are within valid range
-  leftPWM = constrain(leftPWM, 0, LEDC_RESOLUTION);
-  rightPWM = constrain(rightPWM, 0, LEDC_RESOLUTION);
+  int left_pwm, left_direction, right_pwm, right_direction;
+  prepareIdealMotorSignals(moveSpeed, angular_velocity, left_pwm, left_direction, right_pwm, right_direction);
 
-  // Update desired PWM values
-  desiredLeftPWM = leftPWM;
-  desiredRightPWM = rightPWM;
-
-  // Set motor directions to match wiring
-  desiredLeftDirection = LOW;  // LOW for forward
-  desiredRightDirection = LOW;
-
-  // Send the motor signals
-  sendMotorSignals(desiredLeftPWM, desiredLeftDirection, desiredRightPWM, desiredRightDirection);
+  desiredLeftPWM = left_pwm;
+  desiredLeftDirection = left_direction;
+  desiredRightPWM = right_pwm;
+  desiredRightDirection = right_direction;
 }
 
 // Add handler for PWM setting
