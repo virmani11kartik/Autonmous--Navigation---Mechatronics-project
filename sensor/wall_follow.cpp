@@ -27,13 +27,18 @@ void wallFollowingRobot() {
             continue; // Skip to next loop iteration
         }
 
+        // Determine which sensor to use for wall following
+        int wall_distance = isLeftWall ? left_distance : right_distance;
+        String steer_direction_close = isLeftWall ? "right" : "left";
+        String steer_direction_far = isLeftWall ? "left" : "right";
+
         // Wall-following logic
-        if (left_distance < ideal_distance - distance_tolerance) {
-            // Too close to the wall on the left, steer right
-            sendSteeringCommand(5, "right");
-        } else if (left_distance > ideal_distance + distance_tolerance) {
-            // Too far from the wall on the left, steer left
-            sendSteeringCommand(5, "left");
+        if (wall_distance < ideal_distance - distance_tolerance) {
+            // Too close to the wall, steer away
+            sendSteeringCommand(5, steer_direction_close);
+        } else if (wall_distance > ideal_distance + distance_tolerance) {
+            // Too far from the wall, steer toward
+            sendSteeringCommand(5, steer_direction_far);
         } else {
             // Within the ideal distance range, move straight
             sendSteeringCommand(0, "straight");
