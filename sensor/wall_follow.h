@@ -36,9 +36,9 @@ const float CORNER_KP = 2.0;                 // Aggressive steering for corners
 const int NORMAL_TURN_ANGLE = 20;              // Stronger correction for wall following (increased from 20)
 
 // Add new constants for speed control
-const int NORMAL_SPEED = 400;    // Reduced normal speed for better control
-const int CORNER_SPEED = 300;    // Speed for corners
-const int WALL_CLOSE_SPEED = 350;  // Speed when close to wall
+const int NORMAL_SPEED = 60;    // Reduced normal speed for better control
+const int CORNER_SPEED = 30;    // Speed for corners
+const int WALL_CLOSE_SPEED = 35;  // Speed when close to wall
 
 // Add filter constants after other constants
 const int FILTER_WINDOW = 5;  // Number of samples to average

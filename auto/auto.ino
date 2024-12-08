@@ -86,6 +86,7 @@ unsigned int rightRPM = 0;
 
 // Variables to store received commands
 volatile int receivedAngle = 0;
+volatile int receivedSpeed = 0;
 char receivedDirection[10] = "FORWARD";  // Remove volatile
 volatile bool newCommandReceived = false;
 
@@ -212,6 +213,7 @@ void loop() {
       if (!error) {
         receivedAngle = doc["angle"];
         const char* dir = doc["direction"];
+        receivedSpeed = doc["speed"];
         strncpy((char*)receivedDirection, dir, sizeof(receivedDirection) - 1);
         receivedDirection[sizeof(receivedDirection) - 1] = '\0';
         newCommandReceived = true;
@@ -235,7 +237,7 @@ void loop() {
 
   // Process received steering commands only in autonomous mode
   if (autonomousMode && newCommandReceived) {
-    steer(receivedAngle, receivedDirection);
+    steer(receivedAngle, receivedDirection, receivedSpeed);
     newCommandReceived = false;
   }
 
@@ -345,6 +347,7 @@ void sendMotorSignals(
   if (right_direction != desiredRightDirection) {
     ledcWrite(pwmPinRight, 0);
   }
+  delay(MOTOR_STOP_DELAY);
 #endif
 
   // Set the direction of the motors
@@ -416,10 +419,11 @@ void readEncoderValue(
  * Processes steering commands for autonomous mode
  * @param angle: Turning angle (0-45 degrees)
  * @param direction: "LEFT", "RIGHT", or "FORWARD"
+ * @param speed: Desired speed (0-100)
  */
-void steer(int angle, const char* direction) {
+void steer(int angle, const char* direction, int speed) {
   float maxSteeringAngle = 45;  // Use MAX_STEERING_ANGLE from wall_follow.h
-  float moveSpeed = 0.5 * MAX_LINEAR_VELOCTY;   // Base linear velocity
+  float moveSpeed = (speed / 100.0) * MAX_LINEAR_VELOCTY;
   float angular_velocity = (angle / maxSteeringAngle) * MAX_ANGULAR_VELOCITY;
 
   if (strcmp(direction, "LEFT") == 0) {
