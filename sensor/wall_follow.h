@@ -3,7 +3,7 @@
 
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
-#include <Adafruit_VL53L1X.h> 
+// #include <Adafruit_VL53L1X.h> 
 
 /*
 TOOD: Tuning parameters:
@@ -60,7 +60,8 @@ float calculateSteeringAngle(float error);  // Add this line
 
 // Create instances for each sensor
 
-Adafruit_VL53L1X loxFront = Adafruit_VL53L1X();
+// Adafruit_VL53L1X loxFront = Adafruit_VL53L1X();
+Adafruit_VL53L0X loxFront = Adafruit_VL53L0X();
 Adafruit_VL53L0X loxLeft = Adafruit_VL53L0X();
 Adafruit_VL53L0X loxRight = Adafruit_VL53L0X();
 
@@ -86,16 +87,25 @@ void initToFSensors() {
   digitalWrite(XSHUT_RIGHT, LOW);
   delay(10);
 
-  // Initialize Front sensor (VL53L1X)
+  // // Initialize Front sensor (VL53L1X)
+  // digitalWrite(XSHUT_FRONT, HIGH);
+  // delay(50);
+  // frontSensorOK = loxFront.begin(0x29);  // VL53L1X uses 0x29 by default
+  // if (frontSensorOK) {
+  //   loxFront.startRanging();
+  //   loxFront.setTimingBudget(200); 
+  // } else {
+  //   Serial.println("Failed to initialize front sensor");
+  // }
+  
+    // Initialize Front sensor
   digitalWrite(XSHUT_FRONT, HIGH);
   delay(50);
-  frontSensorOK = loxFront.begin(0x29);  // VL53L1X uses 0x29 by default
-  if (frontSensorOK) {
-    loxFront.startRanging();
-    loxFront.setTimingBudget(200); 
-  } else {
+  frontSensorOK = loxFront.begin(0x30);
+  if (!frontSensorOK) {
     Serial.println("Failed to initialize front sensor");
   }
+
 
   // Initialize Left sensor
   digitalWrite(XSHUT_LEFT, HIGH);
