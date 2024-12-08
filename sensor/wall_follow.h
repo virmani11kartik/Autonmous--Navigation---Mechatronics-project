@@ -97,7 +97,7 @@ void initToFSensors() {
   // } else {
   //   Serial.println("Failed to initialize front sensor");
   // }
-  
+
     // Initialize Front sensor
   digitalWrite(XSHUT_FRONT, HIGH);
   delay(50);
@@ -132,14 +132,31 @@ void initToFSensors() {
   Serial.println("System initialized with working sensors!");
 }
 
+// int getFrontDistance() {
+//   if (!frontSensorOK) return OUT_OF_RANGE;
+//   if (loxFront.dataReady()) {
+//     int distance = loxFront.distance();
+//     loxFront.clearInterrupt();
+//     return distance;
+//   }
+//   return OUT_OF_RANGE;
+// }
+
+// int getFrontDistance() {
+//   if (!frontSensorOK) return OUT_OF_RANGE;
+//   if (loxFront.dataReady()) {
+//     int distance = loxFront.distance();
+//     loxFront.clearInterrupt();
+//     return distance;
+//   }
+//   return OUT_OF_RANGE;
+// }
+
 int getFrontDistance() {
   if (!frontSensorOK) return OUT_OF_RANGE;
-  if (loxFront.dataReady()) {
-    int distance = loxFront.distance();
-    loxFront.clearInterrupt();
-    return distance;
-  }
-  return OUT_OF_RANGE;
+  VL53L0X_RangingMeasurementData_t measure;
+  loxFront.rangingTest(&measure, false);
+  return (measure.RangeStatus != 4) ? measure.RangeMilliMeter : OUT_OF_RANGE;
 }
 
 int getLeftDistance() {
