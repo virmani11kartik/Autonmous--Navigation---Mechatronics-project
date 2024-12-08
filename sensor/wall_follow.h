@@ -36,9 +36,9 @@ const float CORNER_KP = 2.0;                 // Aggressive steering for corners
 const int NORMAL_TURN_ANGLE = 20;              // Stronger correction for wall following (increased from 20)
 
 // Add new constants for speed control
-const int NORMAL_SPEED = 60;    // Reduced normal speed for better control
-const int CORNER_SPEED = 30;    // Speed for corners
-const int WALL_CLOSE_SPEED = 35;  // Speed when close to wall
+const int NORMAL_SPEED = 70;    // Reduced normal speed for better control
+const int CORNER_SPEED = 50;    // Speed for corners
+const int WALL_CLOSE_SPEED = 60;  // Speed when close to wall
 
 // Add filter constants after other constants
 const int FILTER_WINDOW = 5;  // Number of samples to average
@@ -210,7 +210,7 @@ void wallFollowLogic() {
         }
         speed = CORNER_SPEED;
     } 
-    // else if (effective_left <= WALL_FOLLOW_THRESHOLD) {
+    else if (effective_left <= WALL_FOLLOW_THRESHOLD) {
     //     // Left wall following - stronger corrections
     //     // direction = (effective_left < wall_distance_setpoint) ? "RIGHT" : "LEFT";
     //     // if (effective_left < wall_distance_setpoint) {
@@ -220,15 +220,15 @@ void wallFollowLogic() {
     //     //     direction = "LEFT";
     //     //     steering_angle = NORMAL_TURN_ANGLE;
     //     // }
-    //     direction = "RIGHT";
-    //     speed = WALL_CLOSE_SPEED;
-    //     steering_angle = NORMAL_TURN_ANGLE;
+        direction = "RIGHT";
+        speed = WALL_CLOSE_SPEED;
+        steering_angle = NORMAL_TURN_ANGLE;
         
     //     // // Adjust speed based on distance from wall
     //     // if (abs(effective_left - wall_distance_setpoint) > 100) {
     //     //     speed = WALL_CLOSE_SPEED;  // Slower when far from desired distance
     //     // }
-    // } else if (effective_right <= WALL_FOLLOW_THRESHOLD) {
+    } else if (effective_right <= WALL_FOLLOW_THRESHOLD) {
     //     // Right wall following - stronger corrections
     //     // direction = (effective_right < wall_distance_setpoint) ? "LEFT" : "RIGHT";
     //     // steering_angle = NORMAL_TURN_ANGLE;
@@ -239,9 +239,9 @@ void wallFollowLogic() {
     //     //     direction = "RIGHT";
     //     //     steering_angle = NORMAL_TURN_ANGLE;
     //     // }
-    //     direction = "LEFT";
-    //     speed = WALL_CLOSE_SPEED;
-    //     steering_angle = NORMAL_TURN_ANGLE;
+        direction = "LEFT";
+        speed = WALL_CLOSE_SPEED;
+        steering_angle = NORMAL_TURN_ANGLE;
 
     //     // // Adjust speed based on distance from wall
     //     // if (abs(effective_right - wall_distance_setpoint) > 100) {
