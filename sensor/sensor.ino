@@ -105,12 +105,12 @@ void loop() {
     delay(10);  // Added delay like in example
     handleRGB();
     // Print sensor values every 1 second
-    if (millis() - lastPrint > 1000) {
-      int d_front, d_left, d_right;
-      readToFSensors(d_front, d_left, d_right);
-      // Serial.printf("Sensors - Front: %d mm, Left: %d mm, Right: %d mm\n", d_front, d_left, d_right);
-      lastPrint = millis();
-    }
+    // if (millis() - lastPrint > 1000) {
+    //   int d_front, d_left, d_right;
+    //   readToFSensors(d_front, d_left, d_right);
+    //   // Serial.printf("Sensors - Front: %d mm, Left: %d mm, Right: %d mm\n", d_front, d_left, d_right);
+    //   lastPrint = millis();
+    // }
 
     // Send sensor data over WebSocket
     static unsigned long lastBroadcast = 0;

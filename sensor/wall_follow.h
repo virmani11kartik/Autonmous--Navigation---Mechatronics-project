@@ -3,6 +3,7 @@
 
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
+#include <Adafruit_VL53L1X.h>  // Add VL53L1X library
 
 /*
 TOOD: Tuning parameters:
@@ -60,7 +61,8 @@ float calculateSteeringAngle(float error);  // Add this line
 #define XSHUT_RIGHT 18 // Changed from 23
 
 // Create instances for each sensor
-Adafruit_VL53L0X loxFront = Adafruit_VL53L0X();
+
+Adafruit_VL53L1X loxFront = Adafruit_VL53L1X();
 Adafruit_VL53L0X loxLeft = Adafruit_VL53L0X();
 Adafruit_VL53L0X loxRight = Adafruit_VL53L0X();
 
@@ -101,11 +103,14 @@ void initToFSensors() {
   digitalWrite(XSHUT_RIGHT, LOW);
   delay(10);
 
-  // Initialize Front sensor
+  // Initialize Front sensor (VL53L1X)
   digitalWrite(XSHUT_FRONT, HIGH);
   delay(50);
-  frontSensorOK = loxFront.begin(0x30);
-  if (!frontSensorOK) {
+  frontSensorOK = loxFront.begin(0x29);  // VL53L1X uses 0x29 by default
+  if (frontSensorOK) {
+    loxFront.startRanging();
+    loxFront.setTimingBudget(50000);  // 50ms timing budget
+  } else {
     Serial.println("Failed to initialize front sensor");
   }
 
@@ -136,9 +141,12 @@ void initToFSensors() {
 
 int getFrontDistance() {
   if (!frontSensorOK) return OUT_OF_RANGE;
-  VL53L0X_RangingMeasurementData_t measure;
-  loxFront.rangingTest(&measure, false);
-  return (measure.RangeStatus != 4) ? measure.RangeMilliMeter : OUT_OF_RANGE;
+  if (loxFront.dataReady()) {
+    int distance = loxFront.distance();
+    loxFront.clearInterrupt();
+    return distance;
+  }
+  return OUT_OF_RANGE;
 }
 
 int getLeftDistance() {
