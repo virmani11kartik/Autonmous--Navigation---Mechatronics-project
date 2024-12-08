@@ -15,8 +15,8 @@ Corner tuning: Good for 180 degrees, still needs tuning for 90 degrees
 
 
 // Constants
-const int wall_distance_setpoint = 150;         // Target distance from wall
-const int front_collision_threshold = 150;      // Minimum distance to obstacle in front
+const int wall_distance_setpoint = 130;         // Target distance from wall
+const int front_collision_threshold = 130;      // Minimum distance to obstacle in front
 const float Kp_steering = 1.5;                  // Adjusted proportional gain for wall alignment
 const float Kp_alignment = 0.5;                 // Adjusted proportional gain for misalignment correction
 
@@ -31,8 +31,8 @@ const int MIN_STEERING_ANGLE = 10; // Minimum steering angle when wall is detect
 const float ERROR_SCALING_FACTOR = wall_distance_setpoint;
 
 // Add these new constants after other constants
-const int CORNER_DETECTION_DISTANCE = 300;      // Detect corners earlier
-const int SHARP_TURN_ANGLE = 45;               // Maximum turn angle for corners
+const int CORNER_DETECTION_DISTANCE = 370;      // Detect corners earlier
+const int SHARP_TURN_ANGLE = 22.5;               // Maximum turn angle for corners
 const float CORNER_KP = 2.0;                 // Aggressive steering for corners
 const int NORMAL_TURN_ANGLE = 20;              // Stronger correction for wall following (increased from 20)
 
@@ -172,9 +172,9 @@ void wallFollowLogic() {
     int effective_right = (d_right == OUT_OF_RANGE || d_right > 8000) ? MAX_SENSOR_RANGE : d_right;
 
     // Debugging: print sensor values
-    Serial.print("Front: "); Serial.print(d_front == OUT_OF_RANGE ? "OOR" : String(d_front));
-    Serial.print(" Left: "); Serial.print(d_left == OUT_OF_RANGE ? "OOR" : String(d_left));
-    Serial.print(" Right: "); Serial.println(d_right == OUT_OF_RANGE ? "OOR" : String(d_right));
+    Serial.print("Front: "); Serial.print(d_front == OUT_OF_RANGE ? "OOR" : String(effective_front));
+    Serial.print(" Left: "); Serial.print(d_left == OUT_OF_RANGE ? "OOR" : String(effective_left));
+    Serial.print(" Right: "); Serial.println(d_right == OUT_OF_RANGE ? "OOR" : String(effective_right));
 
     float steering_angle = 0;
     const char* direction = "FORWARD";
@@ -191,44 +191,45 @@ void wallFollowLogic() {
             steering_angle = SHARP_TURN_ANGLE;
         }
         speed = CORNER_SPEED;
-    } else if (effective_left <= WALL_FOLLOW_THRESHOLD) {
-        // Left wall following - stronger corrections
-        // direction = (effective_left < wall_distance_setpoint) ? "RIGHT" : "LEFT";
-        // if (effective_left < wall_distance_setpoint) {
-        //     direction = "RIGHT";
-        //     steering_angle = NORMAL_TURN_ANGLE;
-        // } else {
-        //     direction = "LEFT";
-        //     steering_angle = NORMAL_TURN_ANGLE;
-        // }
-        direction = "RIGHT";
-        speed = WALL_CLOSE_SPEED;
-        steering_angle = NORMAL_TURN_ANGLE;
+    } 
+    // else if (effective_left <= WALL_FOLLOW_THRESHOLD) {
+    //     // Left wall following - stronger corrections
+    //     // direction = (effective_left < wall_distance_setpoint) ? "RIGHT" : "LEFT";
+    //     // if (effective_left < wall_distance_setpoint) {
+    //     //     direction = "RIGHT";
+    //     //     steering_angle = NORMAL_TURN_ANGLE;
+    //     // } else {
+    //     //     direction = "LEFT";
+    //     //     steering_angle = NORMAL_TURN_ANGLE;
+    //     // }
+    //     direction = "RIGHT";
+    //     speed = WALL_CLOSE_SPEED;
+    //     steering_angle = NORMAL_TURN_ANGLE;
         
-        // // Adjust speed based on distance from wall
-        // if (abs(effective_left - wall_distance_setpoint) > 100) {
-        //     speed = WALL_CLOSE_SPEED;  // Slower when far from desired distance
-        // }
-    } else if (effective_right <= WALL_FOLLOW_THRESHOLD) {
-        // Right wall following - stronger corrections
-        // direction = (effective_right < wall_distance_setpoint) ? "LEFT" : "RIGHT";
-        // steering_angle = NORMAL_TURN_ANGLE;
-        // if (effective_right < wall_distance_setpoint) {
-        //     direction = "LEFT";
-        //     steering_angle = NORMAL_TURN_ANGLE;
-        // } else {
-        //     direction = "RIGHT";
-        //     steering_angle = NORMAL_TURN_ANGLE;
-        // }
-        direction = "LEFT";
-        speed = WALL_CLOSE_SPEED;
-        steering_angle = NORMAL_TURN_ANGLE;
+    //     // // Adjust speed based on distance from wall
+    //     // if (abs(effective_left - wall_distance_setpoint) > 100) {
+    //     //     speed = WALL_CLOSE_SPEED;  // Slower when far from desired distance
+    //     // }
+    // } else if (effective_right <= WALL_FOLLOW_THRESHOLD) {
+    //     // Right wall following - stronger corrections
+    //     // direction = (effective_right < wall_distance_setpoint) ? "LEFT" : "RIGHT";
+    //     // steering_angle = NORMAL_TURN_ANGLE;
+    //     // if (effective_right < wall_distance_setpoint) {
+    //     //     direction = "LEFT";
+    //     //     steering_angle = NORMAL_TURN_ANGLE;
+    //     // } else {
+    //     //     direction = "RIGHT";
+    //     //     steering_angle = NORMAL_TURN_ANGLE;
+    //     // }
+    //     direction = "LEFT";
+    //     speed = WALL_CLOSE_SPEED;
+    //     steering_angle = NORMAL_TURN_ANGLE;
 
-        // // Adjust speed based on distance from wall
-        // if (abs(effective_right - wall_distance_setpoint) > 100) {
-        //     speed = WALL_CLOSE_SPEED;  // Slower when far from desired distance
-        // }
-    }
+    //     // // Adjust speed based on distance from wall
+    //     // if (abs(effective_right - wall_distance_setpoint) > 100) {
+    //     //     speed = WALL_CLOSE_SPEED;  // Slower when far from desired distance
+    //     // }
+    // }
 
     // Send steering command with speed
     sendSteeringCommand((int)steering_angle, direction, speed);
