@@ -1,22 +1,20 @@
 #include <WiFi.h>
-#include <WiFiUdp.h>
-#include "html510.h"       
+#include <WebServer.h>
+#include <WebSocketsServer.h>
+#include <WiFiUdp.h>     
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
 #include <ArduinoJson.h>         
 #include "wall_follow.h"
 #include "web.h"
 #include "rgb.h"
-#include <WebSocketsServer.h>  
 
-// Wi-Fi network details
-const char* ssid = "GM Lab Public WIFI";   // auto.ino's Wi-Fi SSID
-const char* password = "";                 // auto.ino's Wi-Fi password
+const char* ssid = "GM Lab Public WIFI";   
+const char* password = "";             
 
-// Static IP configuration for sensor.ino
-IPAddress local_IP(192, 168, 1, 105);      // Your sensor's IP
-IPAddress gateway(192, 168, 1, 1);         // Router/Gateway IP (usually 192.168.1.1)
-IPAddress subnet(255, 255, 255, 0);        // Subnet mask
+IPAddress local_IP(192, 168, 1, 105);
+IPAddress gateway(192, 168, 1, 1);
+IPAddress subnet(255, 255, 255, 0); 
 
 // IP and port of the auto.ino board
 const char* udpAddress = "192.168.1.104";  // IP address of auto.ino
@@ -24,8 +22,7 @@ const unsigned int udpPort = 8888;         // UDP port to send data to
 
 WiFiUDP udp;
 
-// Initialize HTML510Server
-HTML510Server h(80);  // Changed from 'server' to 'h' to match example
+WebServer server(80);
 
 WebSocketsServer webSocket = WebSocketsServer(81);  // Initialize WebSocket server
 
@@ -37,7 +34,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 
 void setup() {
   setupRGB();
-  IPAddress myIP(192,168,1,105);  // Your chosen IP
   Serial.begin(115200);
   delay(1000);  // Add delay to ensure serial monitor is ready
   Serial.println("\n\nStarting Sensor Node...");
@@ -51,8 +47,7 @@ void setup() {
   Serial.println("Connecting to WiFi...");
   WiFi.mode(WIFI_MODE_STA);
   WiFi.begin(ssid, password);
-  WiFi.config(myIP, IPAddress(192,168,1,1),
-             IPAddress(255,255,255,0));
+  WiFi.config(local_IP, gateway, subnet);
 
   Serial.print("Waiting for WiFi connection");
   int attempts = 0;
@@ -64,12 +59,13 @@ void setup() {
   Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("connected to %s on",ssid); Serial.println(myIP);
+    Serial.printf("connected to %s on ", ssid);
+    Serial.println(WiFi.localIP());
     
     // Start server
-    h.begin();
-    h.attachHandler("/", handleRoot);
-    h.attachHandler("/data", handleData);
+    server.begin();
+    server.on("/", handleRoot);
+    server.on("/data", handleData);
     Serial.println("Web server started");
 
     webSocket.begin();                      // Start WebSocket server
@@ -98,11 +94,11 @@ void loop() {
   static unsigned long lastPrint = 0;
   
   if (WiFi.status() == WL_CONNECTED) {
-    h.serve();
+    server.handleClient();
     webSocket.loop();                       // Handle WebSocket communication
     wallFollowLogic();                      // Send steering command to auto.ino
 
-    delay(10);  // Added delay like in example
+    delay(100); 
     handleRGB();
     // Print sensor values every 1 second
     // if (millis() - lastPrint > 1000) {
@@ -178,13 +174,13 @@ void handleData() {
   jsonString += "\"right\":" + String(d_right);
   jsonString += "}";
 
-  // Send JSON data as plain text
-  h.sendplain(jsonString);
+  // Send JSON data
+  server.send(200, "application/json", jsonString);
 }
 
 // Implement handleRoot function similar to auto.ino
 void handleRoot() {
-  h.sendhtml(WEBPAGE);
+  server.send_P(200, "text/html", WEBPAGE);
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {

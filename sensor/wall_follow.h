@@ -3,7 +3,7 @@
 
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
-#include <Adafruit_VL53L1X.h>  // Add VL53L1X library
+#include <Adafruit_VL53L1X.h> 
 
 /*
 TOOD: Tuning parameters:
@@ -11,9 +11,7 @@ Wall follow threshold - Needs tuning for proper wall following (only tune wall d
 susccessful tuning the threshold)
 Normal Steering angle and Speed - Needs tuning for proper wall following
 Corner tuning: Good for 180 degrees, still needs tuning for 90 degrees
-
 */
-
 
 // Constants
 const int wall_distance_setpoint = 130;         // Target distance from wall
@@ -71,21 +69,6 @@ bool frontSensorOK = false;
 bool leftSensorOK = false;
 bool rightSensorOK = false;
 
-// Add filter buffers
-struct SensorBuffer {
-    int values[FILTER_WINDOW];
-    int index;
-    bool isFull;
-    
-    SensorBuffer() : index(0), isFull(false) {
-        for(int i = 0; i < FILTER_WINDOW; i++) values[i] = INVALID_READING;
-    }
-};
-
-SensorBuffer frontBuffer;
-SensorBuffer leftBuffer;
-SensorBuffer rightBuffer;
-
 // Simplify the initToFSensors() function to match working implementation
 void initToFSensors() {
   // Configure I2C
@@ -109,7 +92,7 @@ void initToFSensors() {
   frontSensorOK = loxFront.begin(0x29);  // VL53L1X uses 0x29 by default
   if (frontSensorOK) {
     loxFront.startRanging();
-    loxFront.setTimingBudget(50000);  // 50ms timing budget
+    loxFront.setTimingBudget(200); 
   } else {
     Serial.println("Failed to initialize front sensor");
   }
