@@ -179,6 +179,13 @@ void readToFSensors(int &d_front, int &d_left, int &d_right) {
   d_right = getRightDistance();
 }
 
+void readSteeringResult(int &angle, const char* direction, int &speed) {
+  // Placeholder function to read steering commands from web interface
+  angle = 0;
+  direction = "FORWARD";
+  speed = NORMAL_SPEED;
+}
+
 // Simplify the wallFollowLogic function
 void wallFollowLogic() {
     int d_front, d_left, d_right;
@@ -199,18 +206,18 @@ void wallFollowLogic() {
     int speed = NORMAL_SPEED;  // Default speed
 
     // Enhanced wall following logic
-    if (effective_front <= CORNER_DETECTION_DISTANCE) {
-        // Corner handling
-        if (effective_left > effective_right) {
-            direction = "LEFT";
-            steering_angle = SHARP_TURN_ANGLE;
-        } else {
-            direction = "RIGHT";
-            steering_angle = SHARP_TURN_ANGLE;
-        }
-        speed = CORNER_SPEED;
-    } 
-    else if (effective_left <= WALL_FOLLOW_THRESHOLD) {
+    // if (effective_front <= CORNER_DETECTION_DISTANCE) {
+    //     // Corner handling
+    //     if (effective_left > effective_right) {
+    //         direction = "LEFT";
+    //         steering_angle = SHARP_TURN_ANGLE;
+    //     } else {
+    //         direction = "RIGHT";
+    //         steering_angle = SHARP_TURN_ANGLE;
+    //     }
+    //     speed = CORNER_SPEED;
+    // } 
+    if (effective_left <= WALL_FOLLOW_THRESHOLD) {
     //     // Left wall following - stronger corrections
     //     // direction = (effective_left < wall_distance_setpoint) ? "RIGHT" : "LEFT";
     //     // if (effective_left < wall_distance_setpoint) {
@@ -223,12 +230,16 @@ void wallFollowLogic() {
         direction = "RIGHT";
         speed = WALL_CLOSE_SPEED;
         steering_angle = NORMAL_TURN_ANGLE;
+        Serial.print("Left wall following - steering angle: ");
+        Serial.println(steering_angle);
         
     //     // // Adjust speed based on distance from wall
     //     // if (abs(effective_left - wall_distance_setpoint) > 100) {
     //     //     speed = WALL_CLOSE_SPEED;  // Slower when far from desired distance
     //     // }
-    } else if (effective_right <= WALL_FOLLOW_THRESHOLD) {
+    // } else if (effective_left > WALL_FOLLOW_THRESHOLD || effective_right <= WALL_FOLLOW_THRESHOLD) {
+    }
+    else {
     //     // Right wall following - stronger corrections
     //     // direction = (effective_right < wall_distance_setpoint) ? "LEFT" : "RIGHT";
     //     // steering_angle = NORMAL_TURN_ANGLE;
@@ -242,12 +253,14 @@ void wallFollowLogic() {
         direction = "LEFT";
         speed = WALL_CLOSE_SPEED;
         steering_angle = NORMAL_TURN_ANGLE;
+        Serial.print("Right wall following - steering angle: ");
+        Serial.println(steering_angle);
 
     //     // // Adjust speed based on distance from wall
     //     // if (abs(effective_right - wall_distance_setpoint) > 100) {
     //     //     speed = WALL_CLOSE_SPEED;  // Slower when far from desired distance
     //     // }
-    // }
+    }
 
     // Send steering command with speed
     sendSteeringCommand((int)steering_angle, direction, speed);

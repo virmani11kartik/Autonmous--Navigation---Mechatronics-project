@@ -63,6 +63,15 @@ const char WEBPAGE[] PROGMEM = R"=====(
             <div class="stat-label">Right Distance</div>
             <div id="rightDistance" class="stat-value">0 mm</div>
         </div>
+        <div class="stat-box">
+            <div class="stat-label">Angle</div>
+            <div id="angle" class="stat-value">0</div>
+        <div class="stat-box">
+            <div class="stat-label">Direction</div>
+            <div id="direction" class="stat-value">-</div>
+        <div class="stat-box">
+            <div class="stat-label">Speed</div>
+            <div id="speed" class="stat-value">0</div>
     </div>
 
     <script>
@@ -75,6 +84,9 @@ const char WEBPAGE[] PROGMEM = R"=====(
             document.getElementById('frontDistance').textContent = data.front + ' mm';
             document.getElementById('leftDistance').textContent = data.left + ' mm';
             document.getElementById('rightDistance').textContent = data.right + ' mm';
+            document.getElementById('angle').textContent = data.angle;
+            document.getElementById('direction').textContent = data.direction;
+            document.getElementById('speed').textContent = data.speed;
         };
 
         ws.onerror = function(error) {

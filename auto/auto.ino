@@ -235,6 +235,7 @@ void loop() {
     rpmCalculation();
     
     // Set left and right pulse count to 0
+    
     leftPulseCount = 0;
     rightPulseCount = 0;
 

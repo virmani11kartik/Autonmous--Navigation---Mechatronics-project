@@ -112,11 +112,17 @@ void loop() {
     static unsigned long lastBroadcast = 0;
     if (millis() - lastBroadcast > 100) {   // Broadcast every 100ms
       int d_front, d_left, d_right;
+      int steering_angle, speed;
+      const char* direction;
       readToFSensors(d_front, d_left, d_right);
+      readSteeringResult(steering_angle, direction, speed);
       StaticJsonDocument<200> doc;
       doc["front"] = d_front;
       doc["left"] = d_left;
       doc["right"] = d_right;
+      doc["angle"] = steering_angle;
+      doc["direction"] = direction;
+      doc["speed"] = speed;
       String jsonString;
       serializeJson(doc, jsonString);
       webSocket.broadcastTXT(jsonString);
@@ -165,13 +171,18 @@ void sendSteeringCommand(int angle, const char* direction, int speed) {
 // Function to send sensor data to clients
 void handleData() {
   int d_front, d_left, d_right;
+  int steering_angle, speed;
+  const char* direction;
   readToFSensors(d_front, d_left, d_right);
-
+  readSteeringResult(steering_angle, direction, speed);
   // Prepare JSON data
   String jsonString = "{";
   jsonString += "\"front\":" + String(d_front) + ",";
   jsonString += "\"left\":" + String(d_left) + ",";
   jsonString += "\"right\":" + String(d_right);
+  jsonString += "\"angle\":" + String(steering_angle) + ",";
+  jsonString += "\"direction\":\"" + String(direction) + "\",";
+  jsonString += "\"speed\":" + String(speed);
   jsonString += "}";
 
   // Send JSON data
