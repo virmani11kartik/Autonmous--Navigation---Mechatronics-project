@@ -57,7 +57,7 @@ int desiredRightDirection = 1;
 // Global variables to store the control signals for the left and right motors
 int controlSignalLeft = 0;
 int controlSignalRight = 0;
-float KP = 0.0;
+float KP = 1.0;
 float KI = 0.0;
 float KD = 0.0;
 int ENABLE_CONTROL = 0;
@@ -83,6 +83,8 @@ volatile unsigned long prevRpmCalcTime = 0;
 const unsigned long rpmCalcInterval = 50;
 unsigned int leftRPM = 0;
 unsigned int rightRPM = 0;
+
+#define DEBUG 1
 
 // Variables to store received commands
 volatile int receivedAngle = 0;
@@ -219,8 +221,8 @@ void loop() {
         newCommandReceived = true;
         
         // Print received values
-        Serial.printf("Received: angle=%d, direction=%s\n", 
-                      receivedAngle, receivedDirection);
+        Serial.printf("Received: angle=%d, direction=%s, speed=%d\n", 
+                      receivedAngle, receivedDirection, receivedSpeed);
       }
     }
   }
@@ -231,6 +233,11 @@ void loop() {
   // Update RPM and control signals at intervals
   if (currentTime - prevRpmCalcTime > rpmCalcInterval) {
     rpmCalculation();
+    
+    // Set left and right pulse count to 0
+    leftPulseCount = 0;
+    rightPulseCount = 0;
+
     updateControlSignals();
     prevRpmCalcTime = currentTime;
   }
@@ -244,6 +251,10 @@ void loop() {
   // Prepare and send motor signals
   int controlled_left_pwm, controlled_right_pwm;
   prepareControlledMotorSignals(desiredLeftPWM, desiredRightPWM, controlled_left_pwm, controlled_right_pwm);
+  if (DEBUG) {
+    Serial.printf("Control signals: Left: %d, Right: %d\n", controlSignalLeft, controlSignalRight);
+    Serial.printf("Controlled Left PWM: %d, Controlled Right PWM: %d\n", controlled_left_pwm, controlled_right_pwm);
+  }
   sendMotorSignals(controlled_left_pwm, desiredLeftDirection, controlled_right_pwm, desiredRightDirection);
 }
 
@@ -375,6 +386,11 @@ void updateControlSignals() {
   int current_pwm_left = map(leftRPM, 0, MAX_RPM, 0, LEDC_RESOLUTION);
   int current_pwm_right = map(rightRPM, 0, MAX_RPM, 0, LEDC_RESOLUTION);
 
+  if (DEBUG) {
+    Serial.printf("Current RPM - Left: %d, Right: %d\n", leftRPM, rightRPM);
+    Serial.printf("Current PWM - Left: %d, Right: %d\n", current_pwm_left, current_pwm_right);
+  }
+
   // PID control
   controlSignalLeft = pidControl(desiredLeftPWM, current_pwm_left, 1000, -LEDC_RESOLUTION, LEDC_RESOLUTION, KP, KI, KD);
   controlSignalRight = pidControl(desiredRightPWM, current_pwm_right, 1000, -LEDC_RESOLUTION, LEDC_RESOLUTION, KP, KI, KD);
@@ -439,7 +455,11 @@ void steer(int angle, const char* direction, int speed) {
 
   int left_pwm, left_direction, right_pwm, right_direction;
   prepareIdealMotorSignals(moveSpeed, angular_velocity, left_pwm, left_direction, right_pwm, right_direction);
-
+  if (DEBUG) {
+    Serial.printf("Steering: angle=%d, direction=%s, speed=%d\n", angle, direction, speed);
+    Serial.printf("Desired Left: PWM=%d, Direction=%d\n", left_pwm, left_direction);
+    Serial.printf("Desired Right: PWM=%d, Direction=%d\n", right_pwm, right_direction);
+  }
   desiredLeftPWM = left_pwm;
   desiredLeftDirection = left_direction;
   desiredRightPWM = right_pwm;
