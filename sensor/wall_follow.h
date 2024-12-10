@@ -7,60 +7,63 @@
 
 /*
 TOOD: Tuning parameters:
-Wall follow threshold - Needs tuning for proper wall following (only tune wall distance setpoint after
-susccessful tuning the threshold)
-Normal Steering angle and Speed - Needs tuning for proper wall following
-Corner tuning: Good for 180 degrees, still needs tuning for 90 degrees
+Wall follow threshold - Complete
+Corner Hanlding - Complete for 90 degrees
+Vive - Incomplete
+Hybrid Mode - Incomplete
 */
 
 // Constants
-const int wall_distance_setpoint = 130;         // Target distance from wall
+
+const int wall_distance_setpoint = 130;         // Target distance from wall (NOT USED ATM)
+/*
 const int front_collision_threshold = 130;      // Minimum distance to obstacle in front
 const float Kp_steering = 1.5;                  // Adjusted proportional gain for wall alignment
-const float Kp_alignment = 0.5;                 // Adjusted proportional gain for misalignment correction
+const float Kp_alignment = 0.5;                 // Adjusted proportional gain for misalignment correctio
+*/
 
 // Add new constants
 const int OUT_OF_RANGE = -1;
 const int MAX_SENSOR_RANGE = 2000;  // Maximum measurable disftance of the sensor in mm
-const int WALL_FOLLOW_THRESHOLD = 250;          // Detect walls
-const int MAX_STEERING_ANGLE = 30; // Maximum steering angle in degrees
-const int MIN_STEERING_ANGLE = 10; // Minimum steering angle when wall is detected
+const int WALL_FOLLOW_THRESHOLD = 150;          // Main parameter for wall following
+// const int LEFT_WALL_THRESHOLD_PUSH = 180;       // NOT USED
+// const int LEFT_WALL_THRESHOLD_PULL = 200;       // NOT USED
+const int MAX_STEERING_ANGLE = 30;              // Maximum steering angle in degrees
+const int MIN_STEERING_ANGLE = 6;               // Minimum steering angle when wall is detected
+const int CORNER_DETECTION_DISTANCE = 370;      // Main parameter for corner detection
+const float SHARP_TURN_ANGLE = 22.5;            // Maximum turn angle for corners
+// const float CORNER_KP = 2.0;                 // Aggressive steering for corners
+const float NORMAL_TURN_ANGLE = 6.0;              // Stronger correction for wall following 
+// const float normal_turn_offset = 1.8;        // Offset for normal turn angle (left)
+const float NORMAL_TURN_PUSH = 4.5;              // AWAY FROM WALL (Wall following parameter)
+const float NORMAL_TURN_PULL = 13;               // TOWARDS WALL (Wall following parameter)
 
-// Scaling factor to normalize error (e.g., wall_distance_setpoint)
-const float ERROR_SCALING_FACTOR = wall_distance_setpoint;
 
-// Add these new constants after other constants
-const int CORNER_DETECTION_DISTANCE = 370;      // Detect corners earlier
-const int SHARP_TURN_ANGLE = 22.5;               // Maximum turn angle for corners
-const float CORNER_KP = 2.0;                 // Aggressive steering for corners
-const int NORMAL_TURN_ANGLE = 20;              // Stronger correction for wall following (increased from 20)
-
-// Add new constants for speed control
+// Speed control constants (%)
 const int NORMAL_SPEED = 70;    // Reduced normal speed for better control
 const int CORNER_SPEED = 50;    // Speed for corners
 const int WALL_CLOSE_SPEED = 60;  // Speed when close to wall
 
-// Add filter constants after other constants
+// Filter parameters (NOT USED)
 const int FILTER_WINDOW = 5;  // Number of samples to average
 const int INVALID_READING = -999;  // Sentinel value for invalid readings
 
-// Function prototypes
+// Function declarations
 void initToFSensors();
 void readToFSensors(int &d_front, int &d_left, int &d_right);
 void wallFollowLogic();
 void sendSteeringCommand(int angle, const char* direction, int speed); // Changed from steer to sendSteeringCommand
 float calculateSteeringAngle(float error);  // Add this line
+float calculatePullSteeringAngle(int leftDistance); // Add function prototype
 
-// Define pins - use only 3.3V capable GPIO pins
-#define SDA_PIN 19    // Changed from 21
-#define SCL_PIN 4     // Changed from 22
-#define XSHUT_FRONT 1 // Changed from 5
-#define XSHUT_LEFT 5  // Changed from 18
-#define XSHUT_RIGHT 18 // Changed from 23
+// Define pins
+#define SDA_PIN 19    // Common SDA (Data line)
+#define SCL_PIN 4     // Common SCL (Clock line)
+#define XSHUT_FRONT 1 // Front sensor XSHUT pin
+#define XSHUT_LEFT 5  // Left sensor XSHUT pin
+#define XSHUT_RIGHT 18 // Right sensor XSHUT pin
 
-// Create instances for each sensor
-
-// Adafruit_VL53L1X loxFront = Adafruit_VL53L1X();
+// Adafruit_VL53L1X loxFront = Adafruit_VL53L1X(); // Uncomment for VL53L1X)
 Adafruit_VL53L0X loxFront = Adafruit_VL53L0X();
 Adafruit_VL53L0X loxLeft = Adafruit_VL53L0X();
 Adafruit_VL53L0X loxRight = Adafruit_VL53L0X();
@@ -75,8 +78,6 @@ void initToFSensors() {
   // Configure I2C
   Wire.begin(SDA_PIN, SCL_PIN);
   delay(10);
-  
-  // Configure XSHUT pins as outputs
   pinMode(XSHUT_FRONT, OUTPUT);
   pinMode(XSHUT_LEFT, OUTPUT);
   pinMode(XSHUT_RIGHT, OUTPUT);
@@ -218,6 +219,7 @@ void wallFollowLogic() {
     //     speed = CORNER_SPEED;
     // } 
     if (effective_left <= WALL_FOLLOW_THRESHOLD) {
+    // if (effective_left <= LEFT_WALL_THRESHOLD_PUSH) {
     //     // Left wall following - stronger corrections
     //     // direction = (effective_left < wall_distance_setpoint) ? "RIGHT" : "LEFT";
     //     // if (effective_left < wall_distance_setpoint) {
@@ -229,17 +231,21 @@ void wallFollowLogic() {
     //     // }
         direction = "RIGHT";
         speed = WALL_CLOSE_SPEED;
-        steering_angle = NORMAL_TURN_ANGLE;
+        // steering_angle = NORMAL_TURN_ANGLE;
+        steering_angle = NORMAL_TURN_PUSH;
         Serial.print("Left wall following - steering angle: ");
         Serial.println(steering_angle);
-        
+        sendSteeringCommand((int)steering_angle, direction, speed);
+      return;
     //     // // Adjust speed based on distance from wall
     //     // if (abs(effective_left - wall_distance_setpoint) > 100) {
     //     //     speed = WALL_CLOSE_SPEED;  // Slower when far from desired distance
     //     // }
     // } else if (effective_left > WALL_FOLLOW_THRESHOLD || effective_right <= WALL_FOLLOW_THRESHOLD) {
+      
     }
-    else {
+      else if (effective_left > WALL_FOLLOW_THRESHOLD) {
+    // else if (effective_left > LEFT_WALL_THRESHOLD_PULL) {
     //     // Right wall following - stronger corrections
     //     // direction = (effective_right < wall_distance_setpoint) ? "LEFT" : "RIGHT";
     //     // steering_angle = NORMAL_TURN_ANGLE;
@@ -252,7 +258,8 @@ void wallFollowLogic() {
     //     // }
         direction = "LEFT";
         speed = WALL_CLOSE_SPEED;
-        steering_angle = NORMAL_TURN_ANGLE;
+        // steering_angle = normal_turn_offset * NORMAL_TURN_ANGLE;
+        steering_angle = calculatePullSteeringAngle(effective_left);
         Serial.print("Right wall following - steering angle: ");
         Serial.println(steering_angle);
 
@@ -260,24 +267,44 @@ void wallFollowLogic() {
     //     // if (abs(effective_right - wall_distance_setpoint) > 100) {
     //     //     speed = WALL_CLOSE_SPEED;  // Slower when far from desired distance
     //     // }
+      sendSteeringCommand((int)steering_angle, direction, speed);
+      return;
     }
 
-    // Send steering command with speed
+    // If no wall detected, move forward
     sendSteeringCommand((int)steering_angle, direction, speed);
 }
 
-// Add a new function to calculate the steering angle
-float calculateSteeringAngle(float error) {
-  // Use a non-linear function to start steering earlier
-  float adjusted_error = tanh(Kp_steering * error); // Output between -1 and 1
-  float raw_steering = abs(adjusted_error) * MAX_STEERING_ANGLE;
+// float calculateSteeringAngle(float error) {
+//   float adjusted_error = tanh(Kp_steering * error); // Output between -1 and 1
+//   float raw_steering = abs(adjusted_error) * MAX_STEERING_ANGLE;
+//   if (raw_steering > 0) {
+//     raw_steering = max(raw_steering, (float)MIN_STEERING_ANGLE);
+//   }
   
-  // Apply minimum steering angle if there's any significant error
-  if (raw_steering > 0) {
-    raw_steering = max(raw_steering, (float)MIN_STEERING_ANGLE);
+//   return raw_steering;
+// }
+
+
+/*
+  Calculate the steering angle based on the left distance (towards the wall)
+  This function is used to adjust the steering angle when following the left wall
+  param leftDistance: the distance from the left wall
+  return: the steering angle in degrees
+*/
+float calculatePullSteeringAngle(int leftDistance) {
+  if (leftDistance <= WALL_FOLLOW_THRESHOLD * 1.1) {
+    return NORMAL_TURN_PULL / 3;
+  } else if (leftDistance <= WALL_FOLLOW_THRESHOLD * 1.2) {
+    return NORMAL_TURN_PULL / 2;
+  } else if (leftDistance <= WALL_FOLLOW_THRESHOLD * 1.4) {
+    return NORMAL_TURN_PULL / 1.5;
+  } else {
+    return NORMAL_TURN_PULL;
   }
-  
-  return raw_steering;
 }
+
+
+// Optional: Add function for push steering angle (away from wall)
 
 #endif
