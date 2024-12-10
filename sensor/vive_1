@@ -22,7 +22,7 @@ float computeHeadingAngle(float x1, float y1, float x2, float y2) {
 
 bool isOnMLine() {
   // Check if the vehicle is on the line connecting start to goal (m-line)
-  // Replace with your actual computation
+  // Replace with actual computation
   // Example: Use a line equation Ax + By + C = 0
   return true; // Simplified for now
 }
