@@ -13,9 +13,6 @@ Vive - Incomplete
 Hybrid Mode - Incomplete
 */
 
-// Constants
-
-const int wall_distance_setpoint = 130;         // Target distance from wall (NOT USED ATM)
 /*
 const int front_collision_threshold = 130;      // Minimum distance to obstacle in front
 const float Kp_steering = 1.5;                  // Adjusted proportional gain for wall alignment
@@ -28,8 +25,7 @@ const int MAX_SENSOR_RANGE = 2000;  // Maximum measurable disftance of the senso
 const int WALL_FOLLOW_THRESHOLD = 150;          // Main parameter for wall following
 // const int LEFT_WALL_THRESHOLD_PUSH = 180;       // NOT USED
 // const int LEFT_WALL_THRESHOLD_PULL = 200;       // NOT USED
-const int MAX_STEERING_ANGLE = 30;              // Maximum steering angle in degrees
-const int MIN_STEERING_ANGLE = 6;               // Minimum steering angle when wall is detected
+const int MAX_STEERING_ANGLE_PERCENT = 5;       // Maximum steering angle as a percentage of the maximum
 const int CORNER_DETECTION_DISTANCE = 370;      // Main parameter for corner detection
 const float SHARP_TURN_ANGLE = 22.5;            // Maximum turn angle for corners
 // const float CORNER_KP = 2.0;                 // Aggressive steering for corners
@@ -40,9 +36,9 @@ const float NORMAL_TURN_PULL = 13;               // TOWARDS WALL (Wall following
 
 
 // Speed control constants (%)
-const int NORMAL_SPEED = 70;    // Reduced normal speed for better control
+const int NORMAL_SPEED = 50;    // Reduced normal speed for better control
 const int CORNER_SPEED = 50;    // Speed for corners
-const int WALL_CLOSE_SPEED = 60;  // Speed when close to wall
+const int WALL_CLOSE_SPEED = 50;  // Speed when close to wall
 
 // Filter parameters (NOT USED)
 const int FILTER_WINDOW = 5;  // Number of samples to average
@@ -67,6 +63,12 @@ float calculatePullSteeringAngle(int leftDistance); // Add function prototype
 Adafruit_VL53L0X loxFront = Adafruit_VL53L0X();
 Adafruit_VL53L0X loxLeft = Adafruit_VL53L0X();
 Adafruit_VL53L0X loxRight = Adafruit_VL53L0X();
+
+// PID controller for wall following - controls the steering angle
+const float Kp_steering = 1.5;  // Proportional gain
+const float Ki_steering = 0.0;  // Integral gain
+const float Kd_steering = 0.0;  // Derivative gain
+PIDController pidSteering(Kp_steering, Ki_steering, Kd_steering, 10, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE);
 
 // Add sensor status flags
 bool frontSensorOK = false;
@@ -218,7 +220,26 @@ void wallFollowLogic() {
     //     }
     //     speed = CORNER_SPEED;
     // } 
-    if (effective_left <= WALL_FOLLOW_THRESHOLD) {
+    // Compute steering angle based on left distance using PID controller
+    steering_angle = pidSteering.compute(WALL_FOLLOW_THRESHOLD, effective_left);
+
+    if (steering_angle > 0) {
+        direction = "RIGHT";
+        speed = WALL_CLOSE_SPEED;
+        Serial.print("Turning right - steering angle: ");
+        Serial.println(steering_angle);
+    } else if (steering_angle < 0) {
+        direction = "LEFT";
+        speed = WALL_CLOSE_SPEED;
+        Serial.print("Turning left - steering angle: ");
+        Serial.println(steering_angle);
+        steering_angle = -steering_angle;  // Make angle positive
+    } else {
+        direction = "FORWARD";
+        speed = NORMAL_SPEED;
+        Serial.println("Moving forward");
+        steering_angle = 0;
+    }
     // if (effective_left <= LEFT_WALL_THRESHOLD_PUSH) {
     //     // Left wall following - stronger corrections
     //     // direction = (effective_left < wall_distance_setpoint) ? "RIGHT" : "LEFT";
@@ -229,22 +250,21 @@ void wallFollowLogic() {
     //     //     direction = "LEFT";
     //     //     steering_angle = NORMAL_TURN_ANGLE;
     //     // }
-        direction = "RIGHT";
-        speed = WALL_CLOSE_SPEED;
-        // steering_angle = NORMAL_TURN_ANGLE;
-        steering_angle = NORMAL_TURN_PUSH;
-        Serial.print("Left wall following - steering angle: ");
-        Serial.println(steering_angle);
-        sendSteeringCommand((int)steering_angle, direction, speed);
-      return;
+        // direction = "RIGHT";
+        // speed = WALL_CLOSE_SPEED;
+        // // steering_angle = NORMAL_TURN_ANGLE;
+        // steering_angle = NORMAL_TURN_PUSH;
+        // Serial.print("Left wall following - steering angle: ");
+        // Serial.println(steering_angle);
+        // sendSteeringCommand((int)steering_angle, direction, speed);
+    //   return;
     //     // // Adjust speed based on distance from wall
     //     // if (abs(effective_left - wall_distance_setpoint) > 100) {
     //     //     speed = WALL_CLOSE_SPEED;  // Slower when far from desired distance
     //     // }
     // } else if (effective_left > WALL_FOLLOW_THRESHOLD || effective_right <= WALL_FOLLOW_THRESHOLD) {
       
-    }
-      else if (effective_left > WALL_FOLLOW_THRESHOLD) {
+    //   else if (effective_left > WALL_FOLLOW_THRESHOLD) {
     // else if (effective_left > LEFT_WALL_THRESHOLD_PULL) {
     //     // Right wall following - stronger corrections
     //     // direction = (effective_right < wall_distance_setpoint) ? "LEFT" : "RIGHT";
@@ -256,20 +276,20 @@ void wallFollowLogic() {
     //     //     direction = "RIGHT";
     //     //     steering_angle = NORMAL_TURN_ANGLE;
     //     // }
-        direction = "LEFT";
-        speed = WALL_CLOSE_SPEED;
+        // direction = "LEFT";
+        // speed = WALL_CLOSE_SPEED;
         // steering_angle = normal_turn_offset * NORMAL_TURN_ANGLE;
-        steering_angle = calculatePullSteeringAngle(effective_left);
-        Serial.print("Right wall following - steering angle: ");
-        Serial.println(steering_angle);
+        // steering_angle = calculatePullSteeringAngle(effective_left);
+        // Serial.print("Right wall following - steering angle: ");
+        // Serial.println(steering_angle);
 
     //     // // Adjust speed based on distance from wall
     //     // if (abs(effective_right - wall_distance_setpoint) > 100) {
     //     //     speed = WALL_CLOSE_SPEED;  // Slower when far from desired distance
     //     // }
-      sendSteeringCommand((int)steering_angle, direction, speed);
-      return;
-    }
+    //   sendSteeringCommand((int)steering_angle, direction, speed);
+    //   return;
+    // }
 
     // If no wall detected, move forward
     sendSteeringCommand((int)steering_angle, direction, speed);

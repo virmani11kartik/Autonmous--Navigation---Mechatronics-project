@@ -443,7 +443,7 @@ void readEncoderValue(
  * @param speed: Desired speed (0-100)
  */
 void steer(int angle, const char* direction, int speed) {
-  float maxSteeringAngle = 45;  // Use MAX_STEERING_ANGLE from wall_follow.h
+  float maxSteeringAngle = 50;  // Use MAX_STEERING_ANGLE from wall_follow.h
   float moveSpeed = (speed / 100.0) * MAX_LINEAR_VELOCTY;
   float angular_velocity = (angle / maxSteeringAngle) * MAX_ANGULAR_VELOCITY;
 
