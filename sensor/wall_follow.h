@@ -65,7 +65,7 @@ Adafruit_VL53L0X loxLeft = Adafruit_VL53L0X();
 Adafruit_VL53L0X loxRight = Adafruit_VL53L0X();
 
 // PID controller for wall following - controls the steering angle
-const float Kp_steering = 1.5;  // Proportional gain
+const float Kp_steering = 0.4;  // Proportional gain
 const float Ki_steering = 0.0;  // Integral gain
 const float Kd_steering = 0.0;  // Derivative gain
 PIDController pidSteering(Kp_steering, Ki_steering, Kd_steering, 10, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE);
