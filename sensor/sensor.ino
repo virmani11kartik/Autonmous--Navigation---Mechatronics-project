@@ -98,7 +98,7 @@ void loop() {
     webSocket.loop();                       // Handle WebSocket communication
     wallFollowLogic();                      // Send steering command to auto.ino
 
-    delay(100); 
+    delay(80);
     handleRGB();
     // Print sensor values every 1 second
     // if (millis() - lastPrint > 1000) {

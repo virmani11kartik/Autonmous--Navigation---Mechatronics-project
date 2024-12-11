@@ -3,6 +3,7 @@
 
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
+#include "pid.h"
 // #include <Adafruit_VL53L1X.h> 
 
 /*
@@ -22,10 +23,10 @@ const float Kp_alignment = 0.5;                 // Adjusted proportional gain fo
 // Add new constants
 const int OUT_OF_RANGE = -1;
 const int MAX_SENSOR_RANGE = 2000;  // Maximum measurable disftance of the sensor in mm
-const int WALL_FOLLOW_THRESHOLD = 150;          // Main parameter for wall following
+const int WALL_FOLLOW_THRESHOLD = 140;          // Main parameter for wall following
 // const int LEFT_WALL_THRESHOLD_PUSH = 180;       // NOT USED
 // const int LEFT_WALL_THRESHOLD_PULL = 200;       // NOT USED
-const int MAX_STEERING_ANGLE_PERCENT = 5;       // Maximum steering angle as a percentage of the maximum
+const int MAX_STEERING_ANGLE_PERCENT = 3;       // Maximum steering angle as a percentage of the maximum
 const int CORNER_DETECTION_DISTANCE = 370;      // Main parameter for corner detection
 const float SHARP_TURN_ANGLE = 22.5;            // Maximum turn angle for corners
 // const float CORNER_KP = 2.0;                 // Aggressive steering for corners
@@ -65,10 +66,10 @@ Adafruit_VL53L0X loxLeft = Adafruit_VL53L0X();
 Adafruit_VL53L0X loxRight = Adafruit_VL53L0X();
 
 // PID controller for wall following - controls the steering angle
-const float Kp_steering = 0.4;  // Proportional gain
+const float Kp_steering = 0.6;  // Proportional gain
 const float Ki_steering = 0.0;  // Integral gain
-const float Kd_steering = 0.0;  // Derivative gain
-PIDController pidSteering(Kp_steering, Ki_steering, Kd_steering, 10, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE);
+const float Kd_steering = 0.5;  // Derivative gain
+PIDController pidSteering(Kp_steering, Ki_steering, Kd_steering, 10, -MAX_STEERING_ANGLE_PERCENT, MAX_STEERING_ANGLE_PERCENT);
 
 // Add sensor status flags
 bool frontSensorOK = false;
