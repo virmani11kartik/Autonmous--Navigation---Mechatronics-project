@@ -58,9 +58,9 @@ int desiredRightDirection = 1;
 int controlSignalLeft = 0;
 int controlSignalRight = 0;
 float KP = 1.0;
-float KI = 0.0;
+float KI = 0.1;
 float KD = 0.0;
-int ENABLE_CONTROL = 0;
+int ENABLE_CONTROL = 1;
 
 // Define the pins for the encoder A and B channels
 const int encoderPinLeftA = 7;
@@ -83,6 +83,10 @@ volatile unsigned long prevRpmCalcTime = 0;
 const unsigned long rpmCalcInterval = 50;
 unsigned int leftRPM = 0;
 unsigned int rightRPM = 0;
+
+// PIDs for both motors
+PIDController leftPID(KP, KI, KD, 4000, -LEDC_RESOLUTION, LEDC_RESOLUTION);
+PIDController rightPID(KP, KI, KD, 4000, -LEDC_RESOLUTION, LEDC_RESOLUTION);
 
 #define DEBUG 1
 
@@ -393,8 +397,8 @@ void updateControlSignals() {
   }
 
   // PID control
-  controlSignalLeft = pidControl(desiredLeftPWM, current_pwm_left, 1000, -LEDC_RESOLUTION, LEDC_RESOLUTION, KP, KI, KD);
-  controlSignalRight = pidControl(desiredRightPWM, current_pwm_right, 1000, -LEDC_RESOLUTION, LEDC_RESOLUTION, KP, KI, KD);
+  controlSignalLeft = leftPID.compute(desiredLeftPWM, current_pwm_left);
+  controlSignalRight = rightPID.compute(desiredRightPWM, current_pwm_right);
 }
 
 // Purpose: update the direction and pulse count of the encoder based on the current encoder values

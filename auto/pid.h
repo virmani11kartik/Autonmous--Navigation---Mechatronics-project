@@ -1,36 +1,47 @@
-// PID Control
-int pidControl(
-    int target, 
-    int current, 
-    int summed_error_limit, 
-    int control_limit_min, 
-    int control_limit_max,
-    float kp,
-    float ki,
-    float kd
-) {
-
-  int u;
-  static int oldsensor = 0;
-  int velocity = current - oldsensor;
+// Implement a PID controller class
+class PIDController {
+  private:
+    float kp_;
+    float ki_;
+    float kd_;
+    int summed_error_limit_;
+    int control_limit_min_;
+    int control_limit_max_;
+    int summederror_;
+    int lasterror_;
   
-  static int summederror = 0;
-  int error = target - current;
-  summederror += error;
+  public:
+    PIDController(float kp, float ki, float kd, int summed_error_limit, int control_limit_min, int control_limit_max) {
+      kp_ = kp;
+      ki_ = ki;
+      kd_ = kd;
+      summed_error_limit_ = summed_error_limit;
+      control_limit_min_ = control_limit_min;
+      control_limit_max_ = control_limit_max;
+      summederror_ = 0;
+      lasterror_ = 0;
+    }
 
-  // Anti-windup
-  int LARGE = 1000;
-  if (error < 0) summederror = (int)(summederror * 0.5);
-  if (summederror > summed_error_limit) summederror = summed_error_limit;
+    int compute(int target, int current) {
+      int error = target - current;
+      summederror_ = summederror_ + error;
 
-  u = (int)(kp * error + ki * summederror + kd * velocity);
+      // Anti-windup
+      if summederror_ > summed_error_limit_ {
+        summederror_ = summed_error_limit_;
+      }
+      if summederror_ < -summed_error_limit_ {
+        summederror_ = -summed_error_limit_;
+      }
 
-  // Max and min control - we will provide this control input as PWM to the motor
-  const int MAX = control_limit_max;
-  const int MIN = control_limit_min;
-  if (u > MAX) u = MAX;
-  if (u < MIN) u = MIN;
-  
-  oldsensor = current;
-  return u;
-}
+      // Basic PID formula
+      int output = kp_ * error + ki_ * summederror_ + kd_ * (error - lasterror_);
+
+      // Control limits
+      if (output > control_limit_max_) output = control_limit_max_;
+      if (output < control_limit_min_) output = control_limit_min_;
+
+      lasterror_ = error;
+      return output;
+    }
+};
