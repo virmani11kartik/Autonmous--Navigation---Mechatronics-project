@@ -1,9 +1,15 @@
+/*
+MEAM 5100 Final Project - Auto ESP Code
+Author: Team 27
+The auto ESP code is responsible for controlling the car based on sensor data and user input.
+Modified based on controller.ino from Lab 4.
+*/
+
 #include <WiFi.h>
 #include <WiFiUdp.h>
-#include <ArduinoJson.h>
-#include <web.h>
+// #include <web.h>
 #include <pid.h>
-#include <WebServer.h>  
+// #include <WebServer.h>  
 #include "rgb.h"
 
 #define LEDC_RESOLUTION_BITS 10
@@ -26,6 +32,9 @@
 
 #define SAFE_DISTANCE 300 // Safe distance in millimeters
 
+#define PRINT_AUTO_FREQUENCY 1000
+uint32_t last_auto_print_time = 0;
+
 // Wi-Fi network name and password
 const char* ssid = "GM Lab Public WIFI";  // Wi-Fi network name
 const char* password = "";   // Wi-Fi password (empty for no password)
@@ -37,9 +46,9 @@ IPAddress subnet(255, 255, 255, 0);    // Subnet mask
 
 WiFiUDP udp;
 const unsigned int localUdpPort = 8888; // Port to listen on
-char incomingPacket[200];  // Buffer for incoming packets
-volatile unsigned long serverPrevTime = 0;
-const unsigned long serverInterval = 50;
+char incomingPacket[5];  // Buffer for incoming packets
+// volatile unsigned long serverPrevTime = 0;
+// const unsigned long serverInterval = 50;
 
 // Define the pins for the motor control
 // Inverter 4 -> IN 2, Inverter 2 -> IN 4
@@ -100,13 +109,30 @@ volatile bool newCommandReceived = false;
 int defaultPWM = 500;  // Default PWM value that can be changed via webpage
 
 // Add WebServer instance
-WebServer server(80);  // Add this with other global variables at the top
+// WebServer server(80);  // Add this with other global variables at the top
 
 // Add to global variables
 bool autonomousMode = true;  // Default to autonomous mode
 
-// Add these function declarations at the top with other function declarations
-void handleControl();
+
+// Add constants for servo control
+const int servoPWMPin = 10;
+const int servoMinAngle = 0;
+const int servoMaxAngle = 180;
+const int servoDefaultAngle = 90;
+const int servoSwingAngle = 45;
+const int servoMinPulse = 500;  // Min pulse width in microseconds (0.5ms)
+const int servoMaxPulse = 2500; // Max pulse width in microseconds (2.5ms)
+const int servoMinDuty = (servoMinPulse * (1 << LEDC_RESOLUTION_BITS)) / 20000;
+const int servoMaxDuty = (servoMaxPulse * (1 << LEDC_RESOLUTION_BITS)) / 20000;
+
+// Add global variables for servo control
+bool swingServo = true;
+bool servoOff = false;
+int healthPoints = 0;
+
+// Add global variable for swing speed
+int swingSpeed = 1; // Adjust as needed
 
 // Interrupt function to update the encoder position, add IRAM_ATTR to run in IRAM
 void IRAM_ATTR updateLeftEncoder() {
@@ -164,21 +190,24 @@ void setup() {
   Serial.println("Setting up Access Point...");
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(local_IP, gateway, subnet);
-  WiFi.softAP(ssid, password);
+  WiFi.softAP(ssid, password, 11);
+  // Wi-Fi setup as STA mode
+  // WiFi.mode(WIFI_MODE_STA);
+  // WiFi.config(local_IP, gateway, subnet);
+  // WiFi.begin(ssid, password, 2);
   Serial.print("AP IP address: ");
   Serial.println(WiFi.softAPIP());
   udp.begin(localUdpPort);
-  Serial.print("HTTP server started at internal IP: ");
+  Serial.print("UDP server started at internal IP: ");
   Serial.print(local_IP);
   Serial.print("\n");
 
   // Update setup to include new endpoints
-  server.on("/", handleRoot);
-  server.on("/setPWM", handleSetPWM);
-  server.on("/setPID", handleControl);  // Reuse PID handler from controller.ino
-  server.on("/setMode", handleSetMode);
-  server.begin();
-  Serial.println("HTTP server started");
+  // server.on("/", handleRoot);
+  // server.on("/setMode", handleSetMode);
+  // server.on("/setMotor", handleSetMotor);
+  // server.begin();
+  // Serial.println("HTTP server started");
 
   // Initialize UDP properly
   if(udp.begin(8888)) {
@@ -186,6 +215,16 @@ void setup() {
   } else {
     Serial.println("UDP server failed to start");
   }
+
+  // Initialize PWM for servo
+  ledcAttach(servoPWMPin, LEDC_FREQUENCY, LEDC_RESOLUTION_BITS);
+
+  // Set servo to default angle
+  setServoAngle(servoDefaultAngle);
+
+  // Initialize servo states
+  swingServo = true;
+  servoOff = false;
 }
 
 /**
@@ -195,45 +234,94 @@ void setup() {
  * 3. Motor control based on mode (autonomous/manual)
  * 4. RPM calculations and PID control
  */
+bool printDebug = true;
 void loop() {
+  // TODO: Send UDP Packet to sensor.ino, so that it can send packet to top hat to take off health
+  // This will ONLY happen when we make a manual override 
   handleRGB();
   // Handle web server requests at regular intervals
-  if (millis() - serverPrevTime > serverInterval) {
-    server.handleClient();
-    serverPrevTime = millis();
+  // if (millis() - serverPrevTime > serverInterval) {
+  //   server.handleClient();
+  //   serverPrevTime = millis();
+  // }
+
+  printDebug = false;
+  if (millis() - last_auto_print_time > PRINT_AUTO_FREQUENCY) {
+    printDebug = true;
+    last_auto_print_time = millis();
   }
 
   // Handle UDP packets
   int packetSize = udp.parsePacket();
+
   if (packetSize) {
-    char incomingPacket[255];
-    int len = udp.read(incomingPacket, 255);
+    char incomingPacket[5];
+    int len = udp.read(incomingPacket, 5);
     if (len > 0) {
       incomingPacket[len] = 0;  // Null terminate
-      Serial.printf("[Successful] Received packet: %s\n", incomingPacket);
+      if (printDebug) {
+        Serial.printf("[Successful] Received packet: %s\n", incomingPacket);
+      }
       
-      // Parse JSON
-      StaticJsonDocument<200> doc;
-      DeserializationError error = deserializeJson(doc, incomingPacket);
+      // Parse Packet - Add error checking
+      bool parseError = false;
       
-      if (!error) {
-        receivedAngle = doc["angle"];
-        const char* dir = doc["direction"];
-        receivedSpeed = doc["speed"];
-        strncpy((char*)receivedDirection, dir, sizeof(receivedDirection) - 1);
-        receivedDirection[sizeof(receivedDirection) - 1] = '\0';
-        newCommandReceived = true;
+      if (!parseError) {
+        receivedSpeed = incomingPacket[0];
+        receivedSpeed = receivedSpeed - 100;  // Map speed from 0 to 200 to -100 to 100
+        receivedAngle = incomingPacket[1];
+        char dirChar = incomingPacket[2];
+        healthPoints = incomingPacket[3];
+        servoOff = incomingPacket[4] == 0 ? true : false;
+        Serial.print("Angle: ");
+        Serial.println(receivedAngle);
+        Serial.print("Speed: ");
+        Serial.println(receivedSpeed);
+        Serial.print("Direction: ");
+        Serial.println(dirChar);
+
+        // Convert single character to direction string
+        switch((char)dirChar) {
+          case 'L':
+            strncpy(receivedDirection, "LEFT", sizeof(receivedDirection) - 1);
+            break;
+          case 'R':
+            strncpy(receivedDirection, "RIGHT", sizeof(receivedDirection) - 1);
+            break;
+          case 'F':
+            strncpy(receivedDirection, "FORWARD", sizeof(receivedDirection) - 1);
+            break;
+          default:
+            parseError = true;
+        }
         
-        // Print received values
-        Serial.printf("Received: angle=%d, direction=%s, speed=%d\n", 
-                      receivedAngle, receivedDirection, receivedSpeed);
+        if (!parseError) {
+          receivedDirection[sizeof(receivedDirection) - 1] = '\0';
+          newCommandReceived = true;
+          
+          if (printDebug) {
+            Serial.printf("Received: angle=%d, direction=%s, speed=%d\n", 
+                        receivedAngle, receivedDirection, receivedSpeed);
+          }
+        }
       }
     }
   }
 
+  // receivedAngle = 0;
+  // receivedSpeed = 50;
+  // strncpy((char*)receivedDirection, "LEFT", sizeof(receivedDirection) - 1);
+  // receivedDirection[sizeof(receivedDirection) - 1] = '\0';
+  // newCommandReceived = true;
+
+
   // Handle periodic tasks
   unsigned long currentTime = millis();
 
+  if (healthPoints <= 0) {
+    stopCar();
+    return;
+  }
   // Update RPM and control signals at intervals
   if (currentTime - prevRpmCalcTime > rpmCalcInterval) {
     rpmCalculation();
@@ -256,11 +344,14 @@ void loop() {
   // Prepare and send motor signals
   int controlled_left_pwm, controlled_right_pwm;
   prepareControlledMotorSignals(desiredLeftPWM, desiredRightPWM, controlled_left_pwm, controlled_right_pwm);
-  if (DEBUG) {
+  if (printDebug) {
     Serial.printf("Control signals: Left: %d, Right: %d\n", controlSignalLeft, controlSignalRight);
     Serial.printf("Controlled Left PWM: %d, Controlled Right PWM: %d\n", controlled_left_pwm, controlled_right_pwm);
   }
   sendMotorSignals(controlled_left_pwm, desiredLeftDirection, controlled_right_pwm, desiredRightDirection);
+
+  // Replace servo handling code with handleServo function
+  handleServo(servoOff, swingServo, swingSpeed);
 }
 
 // Function to stop the car
@@ -298,6 +389,18 @@ void prepareIdealMotorSignals(
   float omega_l = (linear_velocity - angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
   float omega_r = (linear_velocity + angular_velocity * WHEEL_BASE / 2) / WHEEL_RADIUS;
 
+  // Clip the angular velocity to the maximum limits
+  if (omega_l > MAX_WHEEL_VELOCTY) {
+    omega_l = MAX_WHEEL_VELOCTY;
+  } else if (omega_l < -MAX_WHEEL_VELOCTY) {
+    omega_l = -MAX_WHEEL_VELOCTY;
+  }
+  if (omega_r > MAX_WHEEL_VELOCTY) {
+    omega_r = MAX_WHEEL_VELOCTY;
+  } else if (omega_r < -MAX_WHEEL_VELOCTY) {
+    omega_r = -MAX_WHEEL_VELOCTY;
+  }
+
   // Convert the angular velocity to PWM signals
   convertAngularVelocityToPWM(omega_l, left_pwm, left_direction);
   convertAngularVelocityToPWM(omega_r, right_pwm, right_direction);
@@ -331,10 +434,10 @@ void prepareControlledMotorSignals(
 void convertAngularVelocityToPWM(float omega, int& pwm_ref, int& direction) {
   if (omega > 0.0) {
     direction = LOW;  // LOW for forward
-    pwm_ref = mapf(omega, 0, MAX_WHEEL_VELOCTY, 0, (float)LEDC_RESOLUTION);
+    pwm_ref = (int)(mapf(omega, 0, MAX_WHEEL_VELOCTY, 0, (float)LEDC_RESOLUTION));
   } else if (omega < 0.0) {
     direction = HIGH; // HIGH for backward
-    pwm_ref = mapf(-omega, 0, MAX_WHEEL_VELOCTY, 0, (float)LEDC_RESOLUTION);
+    pwm_ref = (int)(mapf(-omega, 0, MAX_WHEEL_VELOCTY, 0, (float)LEDC_RESOLUTION));
   } else {
     // When omega is zero, maintain the last direction
     pwm_ref = 0;
@@ -370,8 +473,12 @@ void sendMotorSignals(
   digitalWrite(dirPinLeft, left_direction);
   digitalWrite(dirPinRight, right_direction);
 
+
+
   // Print pwms
-  Serial.printf("Actual Left PWM: %d, Actual Right PWM: %d\n", left_pwm, right_pwm);
+  if (printDebug) {
+    Serial.printf("Actual Left PWM: %d, Actual Right PWM: %d\n", left_pwm, right_pwm);
+  }
 
   // Set the PWM signals for the motors
   ledcWrite(pwmPinLeft, left_pwm);
@@ -391,8 +498,8 @@ void updateControlSignals() {
   int current_pwm_left = map(leftRPM, 0, MAX_RPM, 0, LEDC_RESOLUTION);
   int current_pwm_right = map(rightRPM, 0, MAX_RPM, 0, LEDC_RESOLUTION);
 
-  if (DEBUG) {
-    Serial.printf("Current RPM - Left: %d, Right: %d\n", leftRPM, rightRPM);
+  if (printDebug) {
+    Serial.printf("Current RPM - Left: %d (direction: %d), Right: %d (direction: %d)\n", leftRPM, leftDirection, rightRPM, rightDirection);
     Serial.printf("Current PWM - Left: %d, Right: %d\n", current_pwm_left, current_pwm_right);
   }
 
@@ -443,9 +550,13 @@ void readEncoderValue(
  * @param speed: Desired speed (0-100)
  */
 void steer(int angle, const char* direction, int speed) {
-  float maxSteeringAngle = 50;  // Use MAX_STEERING_ANGLE from wall_follow.h
+  float maxSteeringAngle = 50.0;  // Use MAX_STEERING_ANGLE from wall_follow.h
   float moveSpeed = (speed / 100.0) * MAX_LINEAR_VELOCTY;
   float angular_velocity = (angle / maxSteeringAngle) * MAX_ANGULAR_VELOCITY;
+  Serial.print("moveSpeed: ");
+  Serial.println(moveSpeed);
+  Serial.print("angular_velocity: ");
+  Serial.println(angular_velocity);
 
   if (strcmp(direction, "LEFT") == 0) {
     // Positive angular velocity for left turn
@@ -460,7 +571,7 @@ void steer(int angle, const char* direction, int speed) {
 
   int left_pwm, left_direction, right_pwm, right_direction;
   prepareIdealMotorSignals(moveSpeed, angular_velocity, left_pwm, left_direction, right_pwm, right_direction);
-  if (DEBUG) {
+  if (printDebug) {
     Serial.printf("Steering: angle=%d, direction=%s, speed=%d\n", angle, direction, speed);
     Serial.printf("Desired Left: PWM=%d, Direction=%d\n", left_pwm, left_direction);
     Serial.printf("Desired Right: PWM=%d, Direction=%d\n", right_pwm, right_direction);
@@ -471,52 +582,89 @@ void steer(int angle, const char* direction, int speed) {
   desiredRightDirection = right_direction;
 }
 
-// Add handler for PWM setting
-/**
- * Handles PWM setting requests from web interface
- * Updates the default PWM value used for `motor control
- */
-void handleSetPWM() {
-  if (server.hasArg("defaultPWM")) {
-    defaultPWM = server.arg("defaultPWM").toInt();
-    server.send(200, "text/plain", "Default PWM updated");
-    Serial.printf("Default PWM updated to: %d\n", defaultPWM);
-  } else {
-    server.send(400, "text/plain", "Bad Request");
-  }
-}
-
-// Add root handler function
-void handleRoot() {
-  server.send_P(200, "text/html", WEBPAGE);
-}
-
 // Add new handler function
 /**
  * Handles mode switching between autonomous and manual control
  * Updates autonomousMode flag and responds to client
  */
-void handleSetMode() {
-  if (server.hasArg("mode")) {
-    String mode = server.arg("mode");
-    autonomousMode = (mode == "autonomous");
-    server.send(200, "text/plain", "Mode updated");
-    Serial.printf("Mode updated to: %s\n", autonomousMode ? "autonomous" : "manual");
-  } else {
-    server.send(400, "text/plain", "Bad Request");
-  }
+// void handleSetMode() {
+//   if (server.hasArg("mode")) {
+//     String mode = server.arg("mode");
+//     autonomousMode = (mode == "autonomous");
+//     server.send(200, "text/plain", "Mode updated");
+//     Serial.printf("Mode updated to: %s\n", autonomousMode ? "autonomous" : "manual");
+//   } else {
+//     server.send(400, "text/plain", "Bad Request");
+//   }
+// }
+
+// // Set motor signals based on the desired PWM values
+// // Function to handle the motor control request
+// void handleSetMotor() {
+//   if (server.hasArg("speed") && server.hasArg("forwardBackward") && server.hasArg("turnRate")) {
+
+//     float motor_speed = server.arg("speed").toFloat(); // percent from 0 to 100
+//     String forward_backward = server.arg("forwardBackward"); // "Forward" or "Backward"
+//     float turn_rate = server.arg("turnRate").toFloat(); // percent from -50 to 50
+
+//     // Use these parameters to call steer appropriately
+//     motor_speed = motor_speed * (forward_backward == "Forward" ? 1 : -1);
+//     if (turn_rate < 0) {
+//       steer((int)-turn_rate, "RIGHT", motor_speed);
+//     } else {
+//       steer((int)turn_rate, "LEFT", motor_speed);
+//     }
+//   }
+// }
+
+// void handleSetServo() {
+//   if (server.hasArg("servo")) {
+//     String servoState = server.arg("servo");
+//     if (servoState == "off") {
+//       servoOff = true;
+//       swingServo = false;
+//     } else if (servoState == "on") {
+//       servoOff = false;
+//       swingServo = true;
+//     }
+//   }
+//   server.send(200, "text/plain", "Servo parameters updated");
+// }
+
+// Function to map angle to duty cycle
+unsigned int angleToDuty(int angle) {
+    return map(angle, servoMinAngle, servoMaxAngle, servoMinDuty, servoMaxDuty);
 }
 
-// Add the handleControl function implementation before setup()
-void handleControl() {
-  if (server.hasArg("kp") && server.hasArg("ki") && server.hasArg("kd") && server.hasArg("enabled")) {
-    KP = server.arg("kp").toFloat();
-    KI = server.arg("ki").toFloat();
-    KD = server.arg("kd").toFloat();
-    ENABLE_CONTROL = server.arg("enabled").toInt();
-    server.send(200, "text/plain", "Control parameters updated");
-    Serial.printf("Control parameters updated: KP: %f, KI: %f, KD: %f, ENABLED: %d\n", KP, KI, KD, ENABLE_CONTROL);
-  } else {
-    server.send(400, "text/plain", "Bad Request");
-  }
+// Function to set servo angle
+void setServoAngle(int angle) {
+    // Limit angle between servoMinAngle and servoMaxAngle
+    if (angle < servoMinAngle) angle = servoMinAngle;
+    if (angle > servoMaxAngle) angle = servoMaxAngle;
+    unsigned int duty = angleToDuty(angle);
+    ledcWrite(servoPWMPin, duty);
+}
+
+// Function to swing the servo between angles
+void swingServoFunction(int swingSpeed) {
+    static int servoAngle = servoDefaultAngle - servoSwingAngle;
+    static int servoIncrement = swingSpeed; // Use swingSpeed for increment
+
+    setServoAngle(servoAngle);
+
+    servoAngle += servoIncrement;
+    if (servoAngle >= servoDefaultAngle + servoSwingAngle || servoAngle <= servoDefaultAngle - servoSwingAngle) {
+        servoIncrement = -servoIncrement; // Reverse direction
+    }
+}
+
+// Add handleServo function
+void handleServo(bool servoOff, bool swingServo, int swingSpeed) {
+    if (servoOff) {
+        setServoAngle(servoMinAngle); // Servo is OFF, set to 0 degrees
+    } else if (swingServo) {
+        swingServoFunction(swingSpeed); // Swing servo
+    } else {
+        setServoAngle(servoDefaultAngle); // Servo is ON, set to default angle
+    }
 }
